@@ -618,30 +618,45 @@ print(fon.info['fund_class'])         # "YAT" veya "EMK"
 
 > **Not**: `weekly_return` yeni TEFAS API'sinde mevcut değil — `None` döner.
 
-### Varlık Dağılımı (Scrapling Gerekli)
+### Varlık Dağılımı
 
-TEFAS Nisan 2026'da SSR mimarisine geçti ve allocation verisi artık Akamai
-korumalı HTML sayfasında embed olarak geliyor. Plain headless Chromium bot
-tespitine takıldığı için `Fund.allocation` artık Scrapling'in patchright
-tabanlı StealthyFetcher'ını (stealth Chromium fork) kullanıyor:
-
-```bash
-pip install borsapy[allocation]
-playwright install chromium         # tek seferlik tarayıcı binary indirme
-```
+`Fund.allocation` fonun varlık türü kırılımını verir. Ek kurulum gerekmez —
+TEFAS'ın JSON endpoint'i (`dagilimSiraliGetirT`) kullanılır.
 
 ```python
-print(fon.allocation)               # Güncel anlık varlık dağılımı
-#         Date          asset_type    asset_name  weight
-# 0  2026-05-02       Hisse Senedi        Stocks   29.75
-# 1  2026-05-02          Ters-Repo  Reverse Repo   18.40
+print(fon.allocation)
+#         Date  code                             asset_type              asset_name  weight
+# 0 2026-08-07  ybyf          Yabancı Borsa Yatırım Fonları            Foreign ETFs   47.33
+# 1 2026-08-07   yyf        Yatırım Fonları Katılma Payları             Fund Shares   30.40
+# 2 2026-08-07   byf  Borsa Yatırım Fonları Katılma Payları              ETF Shares   15.86
 # ...
 ```
 
-> **Önemli değişiklik (v0.9.0)**: TEFAS yeni mimaride tarihsel allocation'ı
-> hiçbir endpointte sunmuyor. Bu yüzden `Fund.allocation_history()` artık
-> `DeprecationWarning` ile aynı anlık snapshot'ı döndürüyor — date-range
-> argümanları kabul ediliyor ama yok sayılıyor.
+Tarihsel dağılım da alınabilir:
+
+```python
+h = fon.allocation_history(period="2mo")
+h.pivot_table(index="Date", columns="asset_type", values="weight")
+```
+
+> **v0.11.0 değişikliği**: `Fund.allocation` artık Scrapling/Chromium
+> gerektirmiyor ve `allocation_history()` deprecated değil. 2026-04 TEFAS
+> geçişi allocation'ı JSON'dan **kaldırmamış, endpoint'i yeniden
+> adlandırmıştı** (`BindHistoryAllocation` → `dagilimSiraliGetirT`); Akamai
+> sadece HTML sayfalarını koruyor, `/api/funds/*` korumasız.
+> `pip install borsapy[allocation]` artık boş bir extra — komut çalışmaya
+> devam eder ama hiçbir şey kurmaz.
+
+**Bilinmesi gerekenler**
+
+- **Ağırlıklar negatif olabilir.** Kaldıraçlı bir fonun repo bacağı böyle
+  görünür: ABG → Hisse Senedi %114.14, Repo %-14.14.
+- **`asset_type` bazen `None`.** Etiketler TEFAS'ın kendi sayfalarındaki
+  değerlerle eşleştirilerek doğrulandı; doğrulanamayan 7 nadir kod için
+  tahmin üretmek yerine `None` dönülür, `code` her zaman doludur.
+- **Sorgu başına en fazla 1 ay.** Daha geniş aralıklar otomatik parçalanır.
+- **TEFAS ~4 istekten sonra HTTP 429 döner** ve blok ~45 sn sürer. Bu yüzden
+  `allocation_history()` çağrı başına ~3 ay ile sınırlıdır.
 
 ### Fon Tarama
 

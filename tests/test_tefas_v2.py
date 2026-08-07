@@ -4,10 +4,11 @@ Covers:
 - ``fonFiyatBilgiGetir`` history with the new ``periyod`` enum
 - Client-side ``start``/``end`` filtering when no native bucket fits
 - ``fonProfilBilgiGetir`` profile fields merged into ``get_fund_detail``
-- Playwright-based ``get_allocation`` (lazy import + parsing)
+- JSON-backed ``get_allocation`` (parsing, universe probe, window splitting)
 """
 
 import json
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -281,69 +282,238 @@ class TestGetFundDetailV2:
 
 
 # =============================================================================
-# get_allocation (Playwright-based)
+# get_allocation (JSON endpoint, 0.11.0+)
 # =============================================================================
 
 
-# Real TEFAS SSR HTML embeds escaped JSON inside a <script> as
-#   \"fonKodu\":\"AAK\",\"kiymetTip\":\"Hisse Senedi\",\"portfoyOrani\":29.75
-# Each backslash-quote is a single escape (\ + ").
-SAMPLE_SSR_HTML = r"""
-<html><head></head><body>
-<script>
-window.__data = "...\"varlikData\":[
-  {\"fonKodu\":\"AAK\",\"kiymetTip\":\"Hisse Senedi\",\"portfoyOrani\":29.75},
-  {\"fonKodu\":\"AAK\",\"kiymetTip\":\"Ters-Repo\",\"portfoyOrani\":18.40},
-  {\"fonKodu\":\"AAK\",\"kiymetTip\":\"Finansman Bonosu\",\"portfoyOrani\":5.40}
-]...";
-</script>
-</body></html>
-"""
+# A verbatim row from POST /api/funds/dagilimSiraliGetirT for TPC on
+# 2026-08-07, trimmed of its zero columns. Built from the real producer's
+# output rather than from what the parser's signature suggests — the shape is
+# the whole point of these tests.
+TPC_ROW = {
+    "fonKodu": "TPC",
+    "fonUnvan": "TEB PORTFÖY KIYMETLİ MADENLER FON SEPETİ FONU",
+    "tarih": "2026-08-07",
+    "bb": 0,
+    "byf": 15.86,
+    "d": 0,
+    "hs": 1.45,
+    "tpp": 3.27,
+    "vmtl": 1.69,
+    "ybyf": 47.33,
+    "yyf": 30.4,
+    "bilFiyat": "1786114823099",
+}
+
+
+def _provider_with_rows(rows):
+    """A provider whose only network call returns ``rows``."""
+    provider = TEFASProvider.__new__(TEFASProvider)
+    provider._cache = Cache()
+    return provider, patch.object(provider, "_post_json_v2", return_value=rows)
 
 
 class TestGetAllocationParsing:
-    def test_parses_varlikdata_from_html(self):
-        provider = TEFASProvider.__new__(TEFASProvider)
-        provider._cache = Cache()
-        with patch.object(provider, "_fetch_fund_page_html", return_value=SAMPLE_SSR_HTML):
-            df = provider.get_allocation("AAK")
-        assert isinstance(df, pd.DataFrame)
-        assert set(df["asset_type"]) == {"Hisse Senedi", "Ters-Repo", "Finansman Bonosu"}
-        # Sorted descending by weight
-        assert df["weight"].iloc[0] == 29.75
-        assert df["weight"].iloc[-1] == 5.40
-        # Standardization applied
-        assert "Stocks" in df["asset_name"].values
+    def test_parses_weights_and_drops_zero_and_meta_columns(self):
+        provider, mocked = _provider_with_rows([TPC_ROW])
+        with mocked:
+            df = provider.get_allocation("TPC")
 
-    def test_no_matches_raises_data_not_available(self):
-        provider = TEFASProvider.__new__(TEFASProvider)
-        provider._cache = Cache()
-        with patch.object(provider, "_fetch_fund_page_html", return_value="<html></html>"):
+        assert isinstance(df, pd.DataFrame)
+        assert set(df["code"]) == {"byf", "hs", "tpp", "vmtl", "ybyf", "yyf"}
+        # bilFiyat is a millisecond timestamp, not a weight.
+        assert "bilFiyat" not in set(df["code"])
+        assert df["weight"].sum() == pytest.approx(100.0, abs=0.01)
+
+    def test_sorted_by_magnitude_with_labels_attached(self):
+        provider, mocked = _provider_with_rows([TPC_ROW])
+        with mocked:
+            df = provider.get_allocation("TPC")
+
+        assert df["code"].iloc[0] == "ybyf"
+        assert df["asset_type"].iloc[0] == "Yabancı Borsa Yatırım Fonları"
+        assert df["asset_name"].iloc[0] == "Foreign ETFs"
+        assert df["Date"].iloc[0] == datetime(2026, 8, 7)
+
+    def test_negative_weight_is_kept(self):
+        """ABG holds Hisse Senedi 114.14 against Repo -14.14.
+
+        Filtering on truthiness drops zeros, which is right. Filtering on sign
+        would erase the borrowing that makes the 114% possible.
+        """
+        row = {"fonKodu": "ABG", "tarih": "2026-08-07", "hs": 114.14, "r": -14.14}
+        provider, mocked = _provider_with_rows([row])
+        with mocked:
+            df = provider.get_allocation("ABG")
+
+        assert dict(zip(df["code"], df["weight"], strict=True)) == {"hs": 114.14, "r": -14.14}
+        assert df["code"].iloc[0] == "hs", "sorted by magnitude, not by value"
+
+    def test_unverified_code_gets_none_not_a_guessed_label(self):
+        row = {"fonKodu": "ZJB", "tarih": "2026-08-07", "gas": 4.95}
+        provider, mocked = _provider_with_rows([row])
+        with mocked:
+            df = provider.get_allocation("ZJB")
+
+        assert df["code"].iloc[0] == "gas"
+        assert df["asset_type"].iloc[0] is None
+        assert df["asset_name"].iloc[0] is None
+
+    def test_no_rows_raises_data_not_available(self):
+        provider, mocked = _provider_with_rows([])
+        with mocked:
             with pytest.raises(DataNotAvailableError):
                 provider.get_allocation("AAK")
 
     def test_caches_result(self):
+        provider, mocked = _provider_with_rows([TPC_ROW])
+        with mocked as mock_post:
+            provider.get_allocation("TPC")
+            provider.get_allocation("TPC")
+        assert mock_post.call_count == 1
+
+    def test_snapshot_keeps_only_the_newest_date(self):
+        older = dict(TPC_ROW, tarih="2026-08-05", hs=9.0)
+        provider, mocked = _provider_with_rows([older, TPC_ROW])
+        with mocked:
+            df = provider.get_allocation("TPC")
+        assert set(df["Date"]) == {datetime(2026, 8, 7)}
+
+
+class TestAllocationUniverseProbe:
+    def test_falls_through_to_the_next_fund_type(self):
+        """A fund absent from a universe must not abort the probe.
+
+        TEFAS leaks 'Index 0 out of bounds for length 0' instead of an empty
+        list, so treating every errorMessage as fatal stopped the YAT probe
+        from ever reaching EMK.
+        """
         provider = TEFASProvider.__new__(TEFASProvider)
         provider._cache = Cache()
-        with patch.object(
-            provider, "_fetch_fund_page_html", return_value=SAMPLE_SSR_HTML
-        ) as mock_fetch:
-            provider.get_allocation("AAK")
-            provider.get_allocation("AAK")
-        assert mock_fetch.call_count == 1
+        emk_row = {"fonKodu": "AAJ", "tarih": "2026-08-07", "dt": 56.17}
+        calls = []
 
+        def fake_post(_endpoint, payload, _label, **_kwargs):
+            calls.append(payload["fonTipi"])
+            return [emk_row] if payload["fonTipi"] == "EMK" else []
 
-class TestStealthyFetcherLazyImport:
-    def test_missing_scrapling_raises_helpful_importerror(self, monkeypatch):
+        with patch.object(provider, "_post_json_v2", side_effect=fake_post):
+            df = provider.get_allocation("AAJ")
+
+        assert calls == ["YAT", "EMK"]
+        assert df["code"].iloc[0] == "dt"
+
+    def test_explicit_fund_type_skips_the_probe(self):
         provider = TEFASProvider.__new__(TEFASProvider)
         provider._cache = Cache()
+        calls = []
 
-        # Force the scrapling import to fail
-        import sys
-        monkeypatch.setitem(sys.modules, "scrapling.fetchers", None)
+        def fake_post(_endpoint, payload, _label, **_kwargs):
+            calls.append(payload["fonTipi"])
+            return [TPC_ROW]
 
-        with pytest.raises(ImportError) as exc_info:
-            provider._fetch_fund_page_html("AAK")
-        msg = str(exc_info.value)
-        assert "scrapling" in msg.lower()
-        assert "borsapy[allocation]" in msg
+        with patch.object(provider, "_post_json_v2", side_effect=fake_post):
+            provider.get_allocation("TPC", fund_type="EMK")
+
+        assert calls == ["EMK"]
+
+    def test_nothing_anywhere_raises_data_not_available(self):
+        provider, mocked = _provider_with_rows([])
+        with mocked:
+            with pytest.raises(DataNotAvailableError, match="ZZZZ"):
+                provider.get_allocation("ZZZZ")
+
+
+class TestAllocationWindows:
+    def test_single_day_is_one_window(self):
+        day = datetime(2026, 8, 7)
+        assert TEFASProvider._allocation_windows(day, day) == [(day, day)]
+
+    def test_month_long_window_is_not_split(self):
+        windows = TEFASProvider._allocation_windows(
+            datetime(2026, 7, 11), datetime(2026, 8, 7)
+        )
+        assert len(windows) == 1
+
+    def test_wide_range_is_split_without_gaps_or_overlap(self):
+        first, last = datetime(2026, 5, 1), datetime(2026, 8, 7)
+        windows = TEFASProvider._allocation_windows(first, last)
+
+        assert len(windows) > 1
+        assert windows[0][0] == first and windows[-1][1] == last
+        for (_, prev_end), (next_start, _) in zip(windows, windows[1:], strict=False):
+            assert (next_start - prev_end).days == 1
+        for w_start, w_end in windows:
+            assert (w_end - w_start).days < 31, "wider than TEFAS accepts"
+
+    def test_range_query_hits_every_window(self):
+        provider = TEFASProvider.__new__(TEFASProvider)
+        provider._cache = Cache()
+        seen = []
+
+        def fake_post(_endpoint, payload, _label, **_kwargs):
+            seen.append((payload["basTarih"], payload["bitTarih"]))
+            return [dict(TPC_ROW, tarih=f"2026-0{len(seen) + 5}-01")]
+
+        with patch.object(provider, "_post_json_v2", side_effect=fake_post):
+            df = provider.get_allocation(
+                "TPC", start=datetime(2026, 5, 1), end=datetime(2026, 8, 7)
+            )
+
+        assert len(seen) == 4, "one request per 28-day window"
+        assert seen[0][0] == "20260501" and seen[-1][1] == "20260807"
+        assert df["Date"].nunique() == 4, "every window's rows are kept"
+
+
+class TestPostJsonV2RateLimit:
+    def test_429_is_retried_then_reported_as_an_api_error(self):
+        """A 429 body is ~240 bytes, so an unguarded .json() would fail as a
+        decode error rather than as 'you asked too fast'."""
+        provider = TEFASProvider.__new__(TEFASProvider)
+        provider._cache = Cache()
+        provider._client = MagicMock()
+        provider._client.post.return_value = MagicMock(status_code=429)
+
+        with pytest.raises(APIError, match="429"):
+            provider._post_json_v2(
+                "dagilimSiraliGetirT", {}, "dagilimSiraliGetirT",
+                max_retries=2, rate_limit_backoff=0,
+            )
+        assert provider._client.post.call_count == 2
+
+    def test_errors_as_empty_translates_a_no_match_into_no_rows(self):
+        provider = TEFASProvider.__new__(TEFASProvider)
+        provider._cache = Cache()
+        provider._client = MagicMock()
+        provider._client.post.return_value = MagicMock(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            content=b'{"errorMessage": "Index 0 out of bounds for length 0"}',
+        )
+        provider._client.post.return_value.json.return_value = {
+            "errorMessage": "Index 0 out of bounds for length 0"
+        }
+
+        rows = provider._post_json_v2(
+            "dagilimSiraliGetirT", {}, "dagilimSiraliGetirT",
+            errors_as_empty=("Index 0 out of bounds",),
+        )
+        assert rows == []
+
+    def test_other_errors_still_raise(self):
+        provider = TEFASProvider.__new__(TEFASProvider)
+        provider._cache = Cache()
+        provider._client = MagicMock()
+        payload = {"errorMessage": "Geçersiz veri: Tarih aralığı 1 ayı aşamaz"}
+        provider._client.post.return_value = MagicMock(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            content=b'{"errorMessage": "x"}',
+        )
+        provider._client.post.return_value.json.return_value = payload
+
+        with pytest.raises(APIError, match="1 ayı aşamaz"):
+            provider._post_json_v2(
+                "dagilimSiraliGetirT", {}, "dagilimSiraliGetirT",
+                errors_as_empty=("Index 0 out of bounds",),
+            )
