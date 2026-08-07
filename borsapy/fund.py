@@ -1,6 +1,6 @@
 """Fund class for mutual fund data - yfinance-like API."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -266,28 +266,30 @@ class Fund(TechnicalMixin, TwitterMixin):
 
     @property
     def allocation(self) -> pd.DataFrame:
-        """Get the current portfolio allocation (asset breakdown).
+        """Get the latest portfolio allocation (asset-type breakdown).
 
-        After the 2026-04 TEFAS migration, allocation data is only available
-        through the Akamai-protected SSR HTML page. This property requires
-        Scrapling (patchright-based stealth Chromium)::
-
-            pip install borsapy[allocation]
-            playwright install chromium  # one-time browser binary download
-
-        Only the current snapshot is returned (one row per asset class).
-        Historical allocation is no longer available via TEFAS.
+        .. versionchanged:: 0.11.0
+            No longer needs a browser. 0.9–0.10 rendered the Akamai-protected
+            SSR page via Scrapling because the 2026-04 migration was read as
+            "allocation left the JSON API"; the endpoint had in fact only been
+            renamed. ``pip install borsapy[allocation]`` is no longer required.
 
         Returns:
-            DataFrame with columns ``Date``, ``asset_type``, ``asset_name``,
-            ``weight``.
+            DataFrame with columns ``Date``, ``code``, ``asset_type``
+            (Turkish label), ``asset_name`` (English), ``weight`` (percent),
+            heaviest holding first. ``asset_type``/``asset_name`` are ``None``
+            for a handful of rare codes whose labels are unverified — see
+            :data:`borsapy._providers.tefas.ASSET_TYPE_LABELS`.
+
+        Note:
+            Weights can be negative: a leveraged fund's repo leg shows as e.g.
+            Hisse Senedi 114.14 alongside Repo -14.14.
 
         Examples:
-            >>> fund = Fund("AAK")
-            >>> fund.allocation
-                 Date              asset_type     asset_name   weight
-            0    2026-05-02        Hisse Senedi  Stocks         29.75
-            1    2026-05-02        Ters-Repo     Reverse Repo   18.40
+            >>> Fund("TPC").allocation
+                    Date  code                     asset_type    asset_name  weight
+            0 2026-08-07  ybyf  Yabancı Borsa Yatırım Fonları  Foreign ETFs   47.33
+            1 2026-08-07   yyf  Yatırım Fonları Katılma Payları  Fund Shares  30.40
             ...
         """
         return self._provider.get_allocation(self._fund_code, fund_type=self.fund_type)
@@ -298,36 +300,60 @@ class Fund(TechnicalMixin, TwitterMixin):
         start: datetime | str | None = None,
         end: datetime | str | None = None,
     ) -> pd.DataFrame:
-        """Get the current portfolio allocation snapshot.
+        """Get portfolio allocation over time, one block of rows per date.
 
-        .. deprecated:: 0.9.0
-            Historical allocation is no longer available from TEFAS — the
-            new Next.js architecture only renders the *current* allocation
-            snapshot in the SSR HTML. This method returns the same data as
-            :attr:`allocation` regardless of ``period``/``start``/``end``.
-            A ``DeprecationWarning`` is emitted on each call.
+        .. versionchanged:: 0.11.0
+            Un-deprecated and actually implemented. The 0.9.0 deprecation said
+            TEFAS no longer exposes historical allocation; it does — the
+            endpoint had been renamed, and it accepts a date range.
 
         Args:
-            period: Ignored (kept for backward compatibility).
-            start: Ignored (kept for backward compatibility).
-            end: Ignored (kept for backward compatibility).
+            period: Lookback when ``start`` is not given: ``1w``, ``1mo``,
+                ``2mo`` or ``3mo``.
+            start: Explicit window start. Overrides ``period``.
+            end: Window end. Defaults to today.
 
         Returns:
-            DataFrame — same shape as :attr:`allocation`.
-        """
-        import warnings
+            DataFrame shaped like :attr:`allocation` but spanning every
+            publication date in the window, oldest first.
 
-        warnings.warn(
-            "Fund.allocation_history() is deprecated since v0.9.0: TEFAS no "
-            "longer exposes historical allocation. Returning the current "
-            "snapshot (same as Fund.allocation).",
-            DeprecationWarning,
-            stacklevel=2,
+        Raises:
+            ValueError: If the window needs more requests than TEFAS's rate
+                limit allows — it caps each query at one month and blocks
+                after about four in quick succession, so roughly three months
+                per call is the ceiling.
+
+        Examples:
+            >>> hist = Fund("TPC").allocation_history(period="2mo")
+            >>> hist.pivot_table(index="Date", columns="asset_type",
+            ...                  values="weight")  # doctest: +SKIP
+        """
+        if start is not None:
+            first = self._parse_date(start)
+        else:
+            spans = {"1w": 7, "1mo": 30, "2mo": 61, "3mo": 91}
+            if period not in spans:
+                raise ValueError(
+                    f"period must be one of {sorted(spans)}, got {period!r}. "
+                    "TEFAS rate limits beyond roughly three months per call; "
+                    "pass explicit start/end and page through for more."
+                )
+            first = datetime.now() - timedelta(days=spans[period])
+
+        last = self._parse_date(end) if end is not None else datetime.now()
+
+        # Each request covers at most one month and TEFAS blocks after ~4.
+        if (last - first).days > 84:
+            raise ValueError(
+                f"allocation_history covers at most ~3 months per call "
+                f"({(last - first).days} days requested). TEFAS caps each "
+                f"query at one month and rate limits after four; call "
+                f"repeatedly with consecutive windows for longer spans."
+            )
+
+        return self._provider.get_allocation(
+            self._fund_code, start=first, end=last, fund_type=self.fund_type
         )
-        # period/start/end are intentionally unused; only the snapshot is
-        # available now.
-        del period, start, end
-        return self.allocation
 
     def history(
         self,

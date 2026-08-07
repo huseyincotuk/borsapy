@@ -1,9 +1,8 @@
 """TEFAS provider for mutual fund data."""
 
 import json
-import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
@@ -17,81 +16,103 @@ from borsapy.exceptions import APIError, DataNotAvailableError
 # Disable SSL warnings for TEFAS
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Asset type code mapping (Turkish abbreviations to full names)
-# Used by BindHistoryAllocation API (returns abbreviations like "HS", "TR")
-ASSET_TYPE_MAPPING = {
-    "BB": "Banka Bonosu",
-    "BYF": "Borsa Yatırım Fonu",
-    "D": "Döviz",
-    "DB": "Devlet Bonusu",
-    "DT": "Devlet Tahvili",
-    "DÖT": "Döviz Ödenekli Tahvil",
-    "EUT": "Eurobond Tahvil",
-    "FB": "Finansman Bonosu",
-    "FKB": "Fon Katılma Belgesi",
-    "GAS": "Gümüş",
-    "GSYKB": "Girişim Sermayesi Yatırım Katılma Belgesi",
-    "GSYY": "Girişim Sermayesi Yatırım",
-    "GYKB": "Gayrimenkul Yatırım Katılma Belgesi",
-    "GYY": "Gayrimenkul Yatırım",
-    "HB": "Hazine Bonosu",
-    "HS": "Hisse Senedi",
-    "KBA": "Kira Sertifikası Alım",
-    "KH": "Katılım Hesabı",
-    "KHAU": "Katılım Hesabı ABD Doları",
-    "KHD": "Katılım Hesabı Döviz",
-    "KHTL": "Katılım Hesabı Türk Lirası",
-    "KKS": "Kira Sertifikası",
-    "KKSD": "Kira Sertifikası Döviz",
-    "KKSTL": "Kira Sertifikası Türk Lirası",
-    "KKSYD": "Kira Sertifikası Yabancı Döviz",
-    "KM": "Kıymetli Maden",
-    "KMBYF": "Kıymetli Maden Borsa Yatırım Fonu",
-    "KMKBA": "Kıymetli Maden Katılma Belgesi Alım",
-    "KMKKS": "Kıymetli Maden Kira Sertifikası",
-    "KİBD": "Kira Sertifikası İpotekli Borçlanma",
-    "OSKS": "Özel Sektör Kira Sertifikası",
-    "OST": "Özel Sektör Tahvili",
-    "R": "Repo",
-    "T": "Tahvil",
-    "TPP": "Ters Repo Para Piyasası",
-    "TR": "Ters Repo",
-    "VDM": "Vadeli Mevduat",
-    "VM": "Vadesiz Mevduat",
-    "VMAU": "Vadesiz Mevduat ABD Doları",
-    "VMD": "Vadesiz Mevduat Döviz",
-    "VMTL": "Vadesiz Mevduat Türk Lirası",
-    "VİNT": "Varlık İpotek Tahvil",
-    "YBA": "Yabancı Borçlanma Araçları",
-    "YBKB": "Yabancı Borsa Katılma Belgesi",
-    "YBOSB": "Yabancı Borsa Özel Sektör Bonusu",
-    "YBYF": "Yabancı Borsa Yatırım Fonu",
-    "YHS": "Yabancı Hisse Senedi",
-    "YMK": "Yabancı Menkul Kıymet",
-    "YYF": "Yabancı Yatırım Fonu",
-    "ÖKSYD": "Özel Sektör Kira Sertifikası Yabancı Döviz",
-    "ÖSDB": "Özel Sektör Devlet Bonusu",
+# Asset-type code -> Turkish label, for the ``dagilimSiraliGetirT`` endpoint.
+#
+# These were NOT transcribed from the abbreviations the retired
+# BindHistoryAllocation endpoint used; that older map (removed in 0.11.0) was
+# wrong for several codes in ways nothing downstream could detect — it read
+# ``kba`` as "Kira Sertifikası Alım" when it is *Kamu Dış Borçlanma Araçları*,
+# ``d`` as "Döviz" when it is *Diğer*, ``vdm`` as "Vadeli Mevduat" when it is
+# *Varlığa Dayalı Menkul Kıymetler*, and ``tpp`` as "Ters Repo Para Piyasası"
+# when it is *Takasbank Para Piyasası*. A wrong label on a right number is
+# worse than no label.
+#
+# Each entry below was derived empirically on 2026-08-07: the weights TEFAS
+# renders on its own pages were matched against this endpoint's numeric columns
+# for the same funds and date, over ~330 funds, and a code was accepted only
+# when exactly one column matched its label in every fund carrying it.
+#
+# Of the 41 codes funds actually use today, seven (kksd, kmbyf, kksyd, vmau,
+# btaa, khau, gas) are rare enough that no sampled page rendered them, so they
+# are deliberately absent and surface as ``asset_type=None`` rather than a
+# guess. The remaining 13 response columns are dead — no fund carries a
+# non-zero weight in any of them.
+ASSET_TYPE_LABELS = {
+    "hs": "Hisse Senedi",
+    "yhs": "Yabancı Hisse Senedi",
+    "dt": "Devlet Tahvili",
+    "hb": "Hazine Bonosu",
+    "fb": "Finansman Bonosu",
+    "ost": "Özel Sektör Tahvili",
+    "vdm": "Varlığa Dayalı Menkul Kıymetler",
+    "kba": "Kamu Dış Borçlanma Araçları",
+    "osdb": "Özel Sektör Dış Borçlanma Araçları",
+    "kibd": "Döviz Cinsi Kamu İç Borçlanma Araçları",
+    "kkstl": "Kamu Kira Sertifikaları (TL)",
+    "osks": "Özel Sektör Kira Sertifikaları",
+    "oksyd": "Özel Sektör Yurt Dışı Kira Sertifikaları",
+    "tr": "Ters-Repo",
+    "r": "Repo",
+    "btas": "BİST Taahhütlü İşlem Pazarı Satım",
+    "tpp": "Takasbank Para Piyasası",
+    "bpp": "Borsa İstanbul Para Piyasası",
+    "vmtl": "Mevduat (TL)",
+    "vmd": "Mevduat (Döviz)",
+    "khtl": "Katılma Hesabı (TL)",
+    "khd": "Katılma Hesabı (Döviz)",
+    "km": "Kıymetli Madenler",
+    "kmkba": "Kıymetli Madenler Cinsinden İhraç Edilen Kamu Borçlanma Araçları",
+    "kmkks": "Kıymetli Madenler Cinsinden İhraç Edilen Kamu Kira Sertifikaları",
+    "ybyf": "Yabancı Borsa Yatırım Fonları",
+    "ybosb": "Yabancı Özel Sektör Borçlanma Araçları",
+    "ybkb": "Yabancı Kamu Borçlanma Araçları",
+    "byf": "Borsa Yatırım Fonları Katılma Payları",
+    "yyf": "Yatırım Fonları Katılma Payları",
+    "gykb": "Gayrimenkul Yatırım Fonları Katılma Payları",
+    "gsykb": "Girişim Sermayesi Yatırım Fonları Katılma Payları",
+    "vint": "Vadeli İşlemler Nakit Teminatları",
+    "d": "Diğer",
 }
 
-# Standardized asset names (maps various API response names to standardized English names)
-# Maps various API response names to standardized English names
+# Turkish label -> standardised English name. Keys must match ASSET_TYPE_LABELS
+# values exactly; a miss yields ``asset_name=None`` rather than a wrong name.
 ASSET_NAME_STANDARDIZATION = {
-    # Direct mappings (API returns these exact names)
     "Hisse Senedi": "Stocks",
-    "Ters-Repo": "Reverse Repo",
+    "Yabancı Hisse Senedi": "Foreign Stocks",
+    "Devlet Tahvili": "Government Bonds",
+    "Hazine Bonosu": "Treasury Bills",
     "Finansman Bonosu": "Commercial Paper",
     "Özel Sektör Tahvili": "Corporate Bonds",
+    "Varlığa Dayalı Menkul Kıymetler": "Asset Backed Securities",
+    "Kamu Dış Borçlanma Araçları": "Government Eurobonds",
+    "Özel Sektör Dış Borçlanma Araçları": "Corporate Eurobonds",
+    "Döviz Cinsi Kamu İç Borçlanma Araçları": "FX-Denominated Domestic Govt Debt",
+    "Kamu Kira Sertifikaları (TL)": "Government Sukuk (TRY)",
+    "Özel Sektör Kira Sertifikaları": "Corporate Sukuk",
+    "Özel Sektör Yurt Dışı Kira Sertifikaları": "Corporate Foreign Sukuk",
+    "Ters-Repo": "Reverse Repo",
+    "Repo": "Repo",
+    "BİST Taahhütlü İşlem Pazarı Satım": "BIST Committed Transactions Market Sale",
+    "Takasbank Para Piyasası": "Takasbank Money Market",
+    "Borsa İstanbul Para Piyasası": "Borsa Istanbul Money Market",
     "Mevduat (TL)": "TL Deposits",
+    "Mevduat (Döviz)": "FX Deposits",
+    "Katılma Hesabı (TL)": "TL Participation Accounts",
+    "Katılma Hesabı (Döviz)": "FX Participation Accounts",
+    "Kıymetli Madenler": "Precious Metals",
+    "Kıymetli Madenler Cinsinden İhraç Edilen Kamu Borçlanma Araçları":
+        "Precious-Metal Denominated Government Debt",
+    "Kıymetli Madenler Cinsinden İhraç Edilen Kamu Kira Sertifikaları":
+        "Precious-Metal Denominated Government Sukuk",
+    "Yabancı Borsa Yatırım Fonları": "Foreign ETFs",
+    "Yabancı Özel Sektör Borçlanma Araçları": "Foreign Corporate Debt",
+    "Yabancı Kamu Borçlanma Araçları": "Foreign Government Debt",
+    "Borsa Yatırım Fonları Katılma Payları": "ETF Shares",
     "Yatırım Fonları Katılma Payları": "Fund Shares",
+    "Gayrimenkul Yatırım Fonları Katılma Payları": "REIF Shares",
     "Girişim Sermayesi Yatırım Fonları Katılma Payları": "VC Fund Shares",
     "Vadeli İşlemler Nakit Teminatları": "Futures Margin",
     "Diğer": "Other",
-    # Additional common names
-    "Devlet Tahvili": "Government Bonds",
-    "Hazine Bonosu": "Treasury Bills",
-    "Kıymetli Maden": "Precious Metals",
-    "Döviz": "Foreign Currency",
-    "Repo": "Repo",
 }
 
 
@@ -230,6 +251,8 @@ class TEFASProvider(BaseProvider):
         payload: dict[str, Any],
         endpoint_label: str,
         max_retries: int = 3,
+        errors_as_empty: tuple[str, ...] = (),
+        rate_limit_backoff: float = 20.0,
     ) -> list[dict[str, Any]]:
         """POST to the new TEFAS ``/api/funds/*`` endpoints with a JSON body.
 
@@ -240,6 +263,15 @@ class TEFASProvider(BaseProvider):
 
         This method handles that envelope, retries transient failures, and
         returns the ``resultList`` directly.
+
+        Args:
+            errors_as_empty: Substrings of ``errorMessage`` that mean "nothing
+                matched" rather than "the request failed". TEFAS leaks Java
+                exception text for some empty results (see
+                :meth:`get_allocation`), and treating those as failures makes a
+                legitimate no-match look like an outage.
+            rate_limit_backoff: Seconds to wait after an HTTP 429 before
+                retrying. TEFAS's block lasts ~45s and sends no ``Retry-After``.
 
         Raises:
             APIError: On non-retryable upstream errors or after exhausting
@@ -253,13 +285,28 @@ class TEFASProvider(BaseProvider):
         }
 
         last_error: APIError | None = None
+        rate_limited = False
         for attempt in range(max_retries):
             if attempt > 0:
-                time.sleep(0.5 * (2 ** (attempt - 1)))
+                time.sleep(rate_limit_backoff if rate_limited else 0.5 * (2 ** (attempt - 1)))
 
+            rate_limited = False
             response = self._client.post(
                 url, json=payload, headers=headers,
             )
+
+            # TEFAS answers bursts with HTTP 429 and a ~240-byte body. Left to
+            # raise_for_status this escapes as an HTTPStatusError that no caller
+            # expects, and the body is short enough that .json() would fail as a
+            # decode error instead of as "you asked too fast".
+            if response.status_code == 429:
+                rate_limited = True
+                last_error = APIError(
+                    f"TEFAS {endpoint_label} rate limited (HTTP 429). The block "
+                    f"clears in about 45 seconds."
+                )
+                continue
+
             response.raise_for_status()
 
             try:
@@ -272,6 +319,8 @@ class TEFASProvider(BaseProvider):
             if isinstance(data, dict):
                 err_msg = data.get("errorMessage")
                 if err_msg:
+                    if any(marker in err_msg for marker in errors_as_empty):
+                        return []
                     raise APIError(
                         f"TEFAS {endpoint_label} returned error: {err_msg}"
                     )
@@ -578,163 +627,233 @@ class TEFASProvider(BaseProvider):
 
         return df
 
-    # Regex used to pull allocation rows out of the SSR HTML payload.
-    # Next.js renders escaped JSON inside a <script> tag, e.g.
-    #   \"fonKodu\":\"AAK\",...\"kiymetTip\":\"Hisse Senedi\",\"portfoyOrani\":29.75
-    @staticmethod
-    def _build_allocation_pattern(fund_code: str) -> re.Pattern[str]:
-        # Built dynamically rather than via str.format because the regex
-        # contains literal ``{`` / ``}`` characters that would confuse
-        # ``str.format``.
-        code = re.escape(fund_code)
-        pattern = (
-            r'\\"fonKodu\\"\s*:\s*\\"' + code + r'\\"'
-            r'[^}]*?\\"kiymetTip\\"\s*:\s*\\"([^\\"]+)\\"'
-            r'[^}]*?\\"portfoyOrani\\"\s*:\s*([\d.]+)'
-        )
-        return re.compile(pattern, re.IGNORECASE)
+    # --- Portfolio allocation (varlık dağılımı) -------------------------
+
+    # TEFAS's allocation grid posts to this endpoint. It is NOT behind the
+    # Akamai bot manager that guards the HTML pages, so a plain httpx client
+    # is enough — no Scrapling, no Chromium. The pre-0.11 implementation
+    # rendered the SSR page because the 2026-04 migration was read as
+    # "allocation is no longer in any JSON endpoint"; in fact the endpoint had
+    # only been renamed (BindHistoryAllocation -> dagilimSiraliGetirT).
+    ALLOCATION_ENDPOINT = "dagilimSiraliGetirT"
+
+    # Columns of the response that are not asset weights.
+    _ALLOCATION_META = frozenset({"fonKodu", "fonUnvan", "tarih", "bilFiyat"})
+
+    # Asking for a fund that is not in the requested universe leaks TEFAS's own
+    # Java exception instead of returning an empty list. Verified 2026-08-07
+    # with an EMK fund queried as YAT, and with a bogus code.
+    _ALLOCATION_NO_MATCH = "Index 0 out of bounds"
+
+    # The endpoint rejects any window wider than one month, explicitly:
+    # "Geçersiz veri: Tarih aralığı 1 ayı aşamaz".
+    _ALLOCATION_MAX_WINDOW_DAYS = 28
+
+    # Fund universes, probed in this order when the caller does not name one.
+    ALLOCATION_FUND_TYPES = ("YAT", "EMK", "BYF")
+
+    def _allocation_payload(
+        self, fund_code: str, fund_type: str, start: str, end: str
+    ) -> dict[str, Any]:
+        """Build the request body. TEFAS wants YYYYMMDD and the code in two keys."""
+        return {
+            "fonTipi": fund_type,
+            "fonKodu": fund_code,
+            "aramaMetni": None,
+            "fonTurKod": None,
+            "fonGrubu": None,
+            "sfonTurKod": None,
+            "basTarih": start,
+            "bitTarih": end,
+            "basSira": 1,
+            "bitSira": 500,
+            "fonTurAciklama": None,
+            "dil": "TR",
+            "kurucuKod": None,
+            "sFonTurKod": "",
+            "fonKod": fund_code,
+            "fonGrup": "",
+            "fonUnvanTip": "",
+        }
+
+    @classmethod
+    def _allocation_windows(
+        cls, first: datetime, last: datetime
+    ) -> list[tuple[datetime, datetime]]:
+        """Split a range into windows the endpoint will accept (<= 1 month)."""
+        windows = []
+        cursor = first
+        span = timedelta(days=cls._ALLOCATION_MAX_WINDOW_DAYS - 1)
+        while cursor <= last:
+            stop = min(cursor + span, last)
+            windows.append((cursor, stop))
+            cursor = stop + timedelta(days=1)
+        return windows
+
+    @classmethod
+    def _allocation_rows(cls, row: dict[str, Any]) -> list[dict[str, Any]]:
+        """Turn one response row into per-asset records.
+
+        Zero and null columns are dropped — a fund holding nothing in a
+        category should not carry 50 empty rows. Weights are percentages and
+        can legitimately be **negative** (a leveraged fund's repo leg), so the
+        filter is on zero, never on sign.
+        """
+        try:
+            stamp = datetime.strptime(str(row.get("tarih")), "%Y-%m-%d")
+        except (TypeError, ValueError):
+            stamp = datetime.now()
+
+        records = []
+        for code, value in row.items():
+            if code in cls._ALLOCATION_META or not value:
+                continue
+            try:
+                weight = float(value)
+            except (TypeError, ValueError):
+                continue
+            label = ASSET_TYPE_LABELS.get(code)
+            records.append(
+                {
+                    "Date": stamp,
+                    "code": code,
+                    "asset_type": label,
+                    "asset_name": (
+                        ASSET_NAME_STANDARDIZATION.get(label) if label else None
+                    ),
+                    "weight": weight,
+                }
+            )
+        return records
 
     def get_allocation(
         self,
         fund_code: str,
         start: datetime | None = None,
         end: datetime | None = None,
-        fund_type: str = "YAT",
+        fund_type: str | None = None,
     ) -> pd.DataFrame:
-        """Get the current portfolio allocation (asset breakdown) for a fund.
+        """Get a fund's portfolio allocation (asset-type breakdown).
 
-        After the 2026-04 TEFAS migration, allocation data is no longer
-        exposed through any JSON endpoint — it is rendered server-side into
-        the ``/tr/fon-detayli-analiz/<code>`` HTML page, which is protected
-        by an Akamai TSPD JS challenge that pure-HTTP clients cannot solve.
-
-        This method uses Scrapling's :class:`StealthyFetcher`, which is
-        built on patchright (a stealth Playwright/Chromium fork) that
-        bypasses Akamai's bot detection, then extracts the inline
-        ``varlikData`` JSON. Install with::
-
-            pip install borsapy[allocation]
-            playwright install chromium  # one-time browser binary download
-
-        Only a snapshot for the current day is returned. The legacy date-range
-        parameters (``start``, ``end``) are accepted for backward compatibility
-        but ignored — historical allocation is no longer available.
+        Backed by the ``dagilimSiraliGetirT`` JSON endpoint. Unlike the
+        0.9–0.10 implementation this needs no browser and no extra install,
+        and ``start``/``end`` are honoured rather than ignored.
 
         Args:
-            fund_code: TEFAS fund code.
-            start: Ignored (kept for backward compatibility).
-            end: Ignored (kept for backward compatibility).
-            fund_type: Ignored (kept for backward compatibility).
+            fund_code: TEFAS fund code, e.g. ``"TPC"``.
+            start: Window start. Omit for the latest published snapshot.
+            end: Window end. Defaults to today when ``start`` is given.
+            fund_type: ``"YAT"`` | ``"EMK"`` | ``"BYF"``. Probed in that order
+                when omitted.
 
         Returns:
-            DataFrame with columns ``Date``, ``asset_type``, ``asset_name``,
-            ``weight`` (percent). One row per asset class.
+            DataFrame with columns ``Date``, ``code``, ``asset_type``
+            (Turkish label, ``None`` when unverified), ``asset_name``
+            (standardised English, ``None`` when unverified) and ``weight``
+            (percent). One row per asset class per date, newest weights first
+            within each date.
 
         Raises:
-            ImportError: If Playwright is not installed.
-            DataNotAvailableError: If the page renders but contains no
-                allocation rows for this fund.
-            APIError: On network or rendering failures.
-        """
-        fund_code = fund_code.upper()
-        # start/end/fund_type are intentionally ignored — see docstring.
-        del start, end, fund_type
+            DataNotAvailableError: Unknown code, or nothing published in range.
+            APIError: On upstream failures, including a sustained HTTP 429.
 
-        cache_key = f"tefas:allocation:{fund_code}"
+        Examples:
+            >>> TefasProvider().get_allocation("TPC")
+                    Date  code                    asset_type      asset_name  weight
+            0 2026-08-07  ybyf  Yabancı Borsa Yatırım Fonları            None   47.33
+            1 2026-08-07   yyf  Yatırım Fonları Katılma Payları          None   30.40
+        """
+        fund_code = fund_code.upper().strip()
+
+        if start is not None:
+            last = end or datetime.now()
+            if last < start:
+                raise ValueError(f"end {last} is before start {start}")
+            windows = self._allocation_windows(start, last)
+        else:
+            # Asking for today alone returns nothing on a weekend or holiday,
+            # so look back a week and keep the newest row.
+            today = datetime.now()
+            windows = [(today - timedelta(days=7), today)]
+
+        cache_key = (
+            f"tefas:allocation:{fund_code}:{fund_type or 'auto'}:"
+            f"{windows[0][0]:%Y%m%d}:{windows[-1][1]:%Y%m%d}:{start is not None}"
+        )
         cached = self._cache_get(cache_key)
         if cached is not None:
-            return cached
+            return cached.copy()
 
-        html = self._fetch_fund_page_html(fund_code)
+        candidates = (fund_type.upper(),) if fund_type else self.ALLOCATION_FUND_TYPES
 
-        pattern = self._build_allocation_pattern(fund_code)
-        matches = pattern.findall(html)
+        # Resolve the universe against the FIRST window only. Probing every
+        # candidate across every window would cost len(types) * len(windows)
+        # requests, and TEFAS rate limits after about four.
+        head_start, head_end = windows[0]
+        resolved_type: str | None = None
+        raw: list[dict[str, Any]] = []
 
-        if not matches:
+        for candidate in candidates:
+            found = self._post_json_v2(
+                self.ALLOCATION_ENDPOINT,
+                self._allocation_payload(
+                    fund_code,
+                    candidate,
+                    head_start.strftime("%Y%m%d"),
+                    head_end.strftime("%Y%m%d"),
+                ),
+                self.ALLOCATION_ENDPOINT,
+                errors_as_empty=(self._ALLOCATION_NO_MATCH,),
+            )
+            if found:
+                resolved_type, raw = candidate, found
+                break
+
+        if resolved_type is None:
             raise DataNotAvailableError(
-                f"No allocation data found in TEFAS HTML for fund: {fund_code}"
+                f"TEFAS published no portfolio allocation for '{fund_code}' "
+                f"(fund types tried: {', '.join(candidates)})"
             )
 
-        today = datetime.now()
-        records: list[dict[str, Any]] = []
-        seen: set[str] = set()
-        for asset_type_tr, weight_str in matches:
-            if asset_type_tr in seen:
-                continue
-            seen.add(asset_type_tr)
-            try:
-                weight = float(weight_str)
-            except ValueError:
-                continue
-            if weight <= 0:
-                continue
-            records.append(
-                {
-                    "Date": today,
-                    "asset_type": asset_type_tr,
-                    "asset_name": ASSET_NAME_STANDARDIZATION.get(
-                        asset_type_tr, asset_type_tr
+        for window_start, window_end in windows[1:]:
+            raw.extend(
+                self._post_json_v2(
+                    self.ALLOCATION_ENDPOINT,
+                    self._allocation_payload(
+                        fund_code,
+                        resolved_type,
+                        window_start.strftime("%Y%m%d"),
+                        window_end.strftime("%Y%m%d"),
                     ),
-                    "weight": weight,
-                }
+                    self.ALLOCATION_ENDPOINT,
+                    errors_as_empty=(self._ALLOCATION_NO_MATCH,),
+                )
             )
+
+        if start is None:
+            # Snapshot: keep only the newest published date.
+            raw = [max(raw, key=lambda r: str(r.get("tarih") or ""))]
+
+        records: list[dict[str, Any]] = []
+        for row in raw:
+            records.extend(self._allocation_rows(row))
 
         if not records:
             raise DataNotAvailableError(
-                f"No allocation data found in TEFAS HTML for fund: {fund_code}"
+                f"No allocation rows for fund {fund_code} in requested range"
             )
 
         df = pd.DataFrame(records)
-        df.sort_values("weight", ascending=False, inplace=True)
+        df.sort_values(
+            ["Date", "weight"],
+            ascending=[True, False],
+            key=lambda s: s.abs() if s.name == "weight" else s,
+            inplace=True,
+        )
         df.reset_index(drop=True, inplace=True)
 
         self._cache_set(cache_key, df, TTL.FX_RATES)
-        return df
-
-    def _fetch_fund_page_html(self, fund_code: str) -> str:
-        """Render the WAF-protected TEFAS fund page via Scrapling.
-
-        Plain headless Chromium gets blocked by Akamai's bot detection
-        (TSPD JS challenge), so we use Scrapling's :class:`StealthyFetcher`
-        which is built on patchright (a stealth Playwright/Chromium fork)
-        and routinely bypasses these protections.
-
-        Separated from :meth:`get_allocation` so tests can stub it.
-        """
-        try:
-            from scrapling.fetchers import StealthyFetcher
-        except ImportError as e:
-            raise ImportError(
-                "Fund.allocation requires Scrapling since TEFAS migrated "
-                "(2026-04) to an Akamai-protected SSR site. Install with: "
-                "    pip install borsapy[allocation] && "
-                "playwright install chromium"
-            ) from e
-
-        url = f"https://www.tefas.gov.tr/tr/fon-detayli-analiz/{fund_code}"
-
-        try:
-            page = StealthyFetcher.fetch(
-                url,
-                headless=True,
-                network_idle=True,
-                # Akamai TSPD challenges complete within ~5 s on a warm cache.
-                timeout=45_000,
-            )
-        except Exception as e:
-            raise APIError(
-                f"Failed to render TEFAS allocation page for {fund_code}: {e}"
-            ) from e
-
-        if getattr(page, "status", 200) >= 400:
-            raise APIError(
-                f"TEFAS allocation page returned HTTP {page.status} "
-                f"for {fund_code}"
-            )
-
-        # Scrapling's response object has .body (bytes) and .html_content (str)
-        html = getattr(page, "html_content", None) or str(page)
-        return html
+        return df.copy()
 
     def screen_funds(
         self,

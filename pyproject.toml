@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "borsapy"
-version = "0.10.2"
+version = "0.11.0"
 description = "Turkish financial markets data library - yfinance-like API for BIST stocks, forex, crypto, and more"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -58,13 +58,11 @@ dev = [
 twitter = [
     "Scweet>=4.0.0",
 ]
-allocation = [
-    # TEFAS migrated to an Akamai-protected SSR site in 2026-04. Plain
-    # headless Chromium is detected, so we use Scrapling's StealthyFetcher
-    # (built on patchright — a stealth Playwright/Chromium fork).
-    # After install, run: playwright install chromium
-    "scrapling[fetchers]>=0.4.0",
-]
+# Kept as an empty extra so existing `pip install borsapy[allocation]` commands
+# keep working. Since 0.11.0 Fund.allocation uses TEFAS's JSON endpoint, so it
+# needs no Scrapling and no Chromium — the 2026-04 migration had renamed the
+# endpoint, not removed it.
+allocation = []
 
 [project.scripts]
 borsapy = "borsapy.cli:main"
