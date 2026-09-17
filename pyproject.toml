@@ -92,4 +92,5 @@ pythonpath = ["."]
 dev = [
     "pdoc>=15.0.4",
     "pytest>=8.4.2",
+    "ruff>=0.16.8",
 ]
