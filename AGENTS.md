@@ -111,6 +111,101 @@ Before completing a change:
 - run relevant tests;
 - run the full test suite when practical.
 
+## Evidence-First Workflow
+
+Repository analysis must be evidence-driven.
+
+Do not infer repository capabilities from filenames, class names, comments,
+documentation, search results, or partial code inspection alone.
+
+For repository-wide analysis, use the following workflow:
+
+1. Discover the relevant files.
+2. Read the implementation that is necessary to support each claim.
+3. Record concrete evidence before drawing conclusions.
+4. Separate verified facts from unresolved or unverified items.
+5. Only then produce the final synthesis.
+
+A search result identifies where to investigate; it is not evidence by
+itself that a feature or behavior exists.
+
+Do not claim that a provider, API, endpoint, feature, fallback, cache,
+retry mechanism, authentication method, or data field exists unless it
+has been verified in the relevant implementation.
+
+When examining external data sources:
+
+- Copy hostnames and endpoint paths only from code actually inspected.
+- Never reconstruct, autocomplete, normalize, or guess a URL.
+- Never infer an API provider solely from a module or class name.
+- Distinguish between URLs actually requested by code and URLs that appear
+  only in comments, examples, tests, or documentation.
+- If an endpoint or source cannot be verified, report it as `unverified`.
+- If code dynamically constructs an endpoint, describe only the verified
+  components and state that the final URL is constructed dynamically.
+
+When reporting repository findings, use these confidence labels where
+appropriate:
+
+- `VERIFIED` — directly supported by inspected implementation.
+- `PARTIAL` — some relevant implementation was inspected, but the complete
+  behavior was not established.
+- `UNVERIFIED` — insufficient evidence was inspected to support the claim.
+
+Never convert `PARTIAL` or `UNVERIFIED` findings into factual statements
+in summaries.
+
+## Large Analysis Tasks
+
+Do not attempt to understand the entire repository in one reasoning step.
+
+For broad analysis:
+
+1. Build a file inventory.
+2. Divide the investigation into logical components.
+3. Inspect one component at a time.
+4. Keep intermediate findings concise.
+5. Re-check important claims against implementation before the final report.
+
+Do not stop repository exploration merely because enough information seems
+available to produce a plausible answer.
+
+If the requested scope is too large to verify reliably in one pass, say so
+and propose or perform a staged investigation instead of filling gaps with
+assumptions.
+
+Prefer targeted `Glob`, `Grep`, and `Read` operations over broad,
+unstructured searches.
+
+Use only tools that are actually available in the current environment.
+If a tool call fails because the tool does not exist, do not invent another
+tool name. Continue using the available tools.
+
+## Reporting Requirements
+
+For technical repository analysis:
+
+- Reference important findings by repository-relative file path.
+- Distinguish observed implementation from interpretation.
+- Do not state repository-wide negatives such as "no implementation exists",
+  "all providers behave this way", or "there are no circular dependencies"
+  unless the relevant scope was systematically inspected.
+- Do not describe external endpoint availability unless it was actually
+  tested and such testing was part of the requested task.
+- Do not present malformed, incomplete, or uncertain URLs as valid endpoints.
+- Prefer omission or `UNVERIFIED` over speculation.
+
+Before submitting a final analysis, perform a consistency check:
+
+1. Is every important factual claim supported by inspected code?
+2. Did I infer anything from a filename or search result alone?
+3. Did I reconstruct or guess any external URL?
+4. Did I generalize from one provider or module to the whole repository?
+5. Did I claim absence without systematically checking the relevant scope?
+
+If any answer indicates insufficient evidence, revise the report before
+submitting it.
+
 ## Agent Behavior
 
 When asked to implement a feature:
