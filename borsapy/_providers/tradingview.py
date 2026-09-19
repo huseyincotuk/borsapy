@@ -248,18 +248,24 @@ class TradingViewProvider(BaseProvider):
         """
         url = "https://www.tradingview.com/"
 
-        # Build cookie header
-        cookies = f"sessionid={session}"
+        # Cookies must be present in the client cookie jar before the
+        # www.tradingview.com -> localized-domain redirect occurs.
+        cookies = {"sessionid": session}
         if signature:
-            cookies += f"; sessionid_sign={signature}"
+            cookies["sessionid_sign"] = signature
 
         headers = {
             "User-Agent": self._get_user_agent(),
-            "Cookie": cookies,
         }
 
         try:
-            response = self._client.get(url, headers=headers, follow_redirects=True)
+            with httpx.Client(
+                timeout=self._client.timeout,
+                headers=headers,
+                cookies=cookies,
+                follow_redirects=True,
+            ) as client:
+                response = client.get(url)
         except httpx.RequestError as e:
             raise AuthenticationError(f"Failed to validate session: {e}") from e
 
