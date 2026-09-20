@@ -1,234 +1,203 @@
 # AGENTS.md
 
-## Project
+## Proje
 
-This repository is `borsapy`, a Python library for Turkish financial market
-data and analysis, with a focus on Borsa İstanbul (BIST).
+Bu depo, Borsa İstanbul (BIST) odaklı, Türk finans piyasası verileri ve analizleri için bir Python kütüphanesi olan `borsapy`'yi içerir.
 
-The project is being extended to support a comprehensive BIST equity
-research workflow. Existing `borsapy` functionality must remain stable
-unless a change is explicitly required.
+Proje, kapsamlı bir BIST hisse senedi araştırma iş akışı destekleyecek şekilde genişletilmektedir. Mevcut `borsapy` işlevselliği, açıkça istenmediği sürece değişmeden kalmalıdır.
 
-## Core Principles
+## Temel Prensipler
 
-1. Do not invent financial or market data.
-2. Do not silently fabricate, estimate, or fill missing financial data.
-3. Preserve the provenance of externally sourced data.
-4. Prefer primary sources when available, especially KAP for company
-   disclosures and official market/regulatory sources for market data.
-5. Treat dates, reporting periods, units, currencies, and point-in-time
-   information carefully. Do not mix periods without explicitly handling it.
-6. Preserve backward compatibility of the existing public API whenever
-   reasonably possible.
-7. Prefer small, focused, reversible changes over broad refactors.
-8. Do not change unrelated files or functionality.
+1. Finansal ya da piyasa verileri uydurmayın.
+2. Eksik finansal verileri sessizce tahmin, hesaplama ya da doldurmayın.
+3. Dışarıdan alınan verilerin kaynağını koruyun.
+4. Özellikle şirket açıklamaları için KAP, piyasa verileri için resmi piyasa/denetim kaynaklarını tercih edin.
+5. Tarih, raporlama dönemi, birimler, para birimleri ve anlık bilgilerle dikkatli davranın. Dönemleri açıkça işlenmedikçe karıştırmayın.
+6. Mevcut herkese açık API'nin geriye dönük uyumluluğunu mümkün olduğunca koruyun.
+7. Büyük yeniden yapılandırmalardan ziyade, küçük, odaklı ve geri alınabilir değişiklikleri tercih edin.
+8. İlgisiz dosya ve işlevleri değiştirmeyin.
 
-## Data Sources
+## Veri Kaynakları
 
-For every new external data integration:
+Her yeni dış veri entegrasyonu için:
 
-- Identify the source.
-- Document how the data is retrieved.
-- Handle unavailable data explicitly.
-- Validate and normalize the returned data.
-- Preserve important source metadata such as dates, periods, identifiers,
-  and document references when applicable.
-- Do not treat secondary-source data as equivalent to primary-source data.
+- Kaynağı belirleyin.
+- Verinin nasıl alındığını belgeleyin.
+- Kullanılamayan veriyi açıkça ele alın.
+- Dönen veriyi doğrulayın ve normalize edin.
+- Tarihler, dönemler, kimlikler ve belge referansları gibi önemli kaynak meta verilerini koruyun.
+- İkincil kaynak verilerini birincil kaynak verileriyle eşdeğer tutmayın.
 
-Source-specific implementation details belong in project documentation,
-not in this file.
+Kaynağa özgü uygulama detayları proje dokümantasyonunda yer almalı, bu dosyada bulunmamalıdır.
 
-## Financial Data Integrity
+## Finansal Veri Bütünlüğü
 
-Financial calculations must be deterministic and reproducible.
+Finansal hesaplamalar belirli ve yeniden üretilebilir olmalıdır.
 
-Pay particular attention to:
+Özellikle şu konulara dikkat edin:
 
-- reporting periods;
-- fiscal year versus calendar year;
-- quarterly versus trailing-twelve-month values;
-- adjusted versus unadjusted prices;
-- TL versus other currencies;
-- millions/thousands/unit scaling;
-- stock splits and capital actions;
-- missing values;
-- restated financial statements.
+- raporlama dönemleri;
+- mali yıl ile takvim yılı farkı;
+- çeyrek vs. son on iki aylık değerler;
+- ayarlanmış vs. ayarlanmamış fiyatlar;
+- TL vs. diğer para birimleri;
+- milyon/bin/birim ölçeklendirmeleri;
+- hisse bölünmeleri ve sermaye hareketleri;
+- eksik değerler;
+- yeniden düzenlenmiş mali tablolar.
 
-Never hide a missing or conflicting value by silently substituting another
-value.
+Eksik ya da çelişkili bir değeri sessizce başka bir değerle değiştirerek gizlemeyin.
 
-## Code Changes
+## Kod Değişiklikleri
 
-Before modifying code:
+Kod değiştirirken:
 
-1. Inspect the existing implementation and related tests.
-2. Understand the current public API and data flow.
-3. Identify the smallest appropriate change.
-4. Add or update tests for the changed behavior.
+1. Mevcut uygulamayı ve ilgili testleri inceleyin.
+2. Halihazırdaki herkese açık API ve veri akışını anlayın.
+3. En küçük uygun değişikliği tanımlayın.
+4. Değişen davranışı kapsayan testleri ekleyin ya da güncelleyin.
 
-For new data adapters or integrations, include tests covering:
+Yeni veri bağlayıcıları veya entegrasyonlar için aşağıdaki testleri kapsayın:
 
-- normal/valid data;
-- empty or missing data;
-- malformed responses;
-- relevant error conditions;
-- regression cases for important bugs.
+- normal/geçerli veri;
+- boş ya da eksik veri;
+- hatalı yanıtlar;
+- ilgili hata koşulları;
+- kritik hatalar için geri dönüş testleri.
 
-Network operations must have appropriate timeout and error handling.
-Do not introduce infinite retries or unbounded waits.
+Ağ işlemlerinin uygun zaman aşımı ve hata yönetimi olmalı. Sonsuz tekrar denemeleri ya da sınırsız beklemeler eklemeyin.
 
-## Testing and Quality
+## Test ve Kalite
 
-Use the repository's `uv` environment.
+Depodaki `uv` ortamını kullanın.
 
-Run:
+Çalıştır:
 
     uv run pytest -q
     uv run ruff check .
 
-Do not weaken, delete, skip, or modify tests merely to make a change pass.
+Testleri sadece değişikliği geçmek için zayıflatmayın, silmeyin, atlamayın ya da değiştirmeyin.
 
-If an existing test or lint failure is unrelated to the current change,
-identify it explicitly rather than silently fixing unrelated code.
+Mevcut bir test ya da lint hatası, mevcut değişiklikle alâkası yoksa, sessizce başka kodu düzeltmek yerine bunu açıkça belirtin.
 
 ## Git
 
-Work from `develop`.
+`develop` dalından çalışın.
 
-Use a dedicated feature branch for substantive changes:
+Önemli değişiklikler için ayrı bir özellik dalı kullanın:
 
-    feature/<short-description>
+    feature/<kısa-açıklama>
 
-Keep commits focused and descriptive.
+Commit'leri odaklı ve açıklayıcı tutun.
 
-Do not commit generated caches, virtual environments, credentials,
-API keys, secrets, or local configuration.
+Oluşturulan önbellekler, sanal ortamlar, kimlik bilgileri, API anahtarları, sırlar ya da yerel yapılandırmalar gibi dosyaları commit etmeyin.
 
-Before completing a change:
+Değişikliği tamamlamadan önce:
 
-- inspect `git diff`;
-- inspect `git status`;
-- run relevant tests;
-- run the full test suite when practical.
+- `git diff` çıktısını inceleyin;
+- `git status` çıktısını kontrol edin;
+- ilgili testleri çalıştırın;
+- mümkün olduğunda tüm test süitini çalıştırın.
 
-## Evidence-First Workflow
+## Kanıta Dayalı Çalışma Akışı
 
-Repository analysis must be evidence-driven.
+Depo analizi kanıta dayalı olmalıdır.
 
-Do not infer repository capabilities from filenames, class names, comments,
-documentation, search results, or partial code inspection alone.
+Dosya adları, sınıf isimleri, yorumlar, dokümantasyon, arama sonuçları ya da kısmi kod incelemeleri üzerinden repo yeteneklerini tahmin etmeyin.
 
-For repository-wide analysis, use the following workflow:
+Depo genelinde analiz için şu adımları izleyin:
 
-1. Discover the relevant files.
-2. Read the implementation that is necessary to support each claim.
-3. Record concrete evidence before drawing conclusions.
-4. Separate verified facts from unresolved or unverified items.
-5. Only then produce the final synthesis.
+1. İlgili dosyaları keşfedin.
+2. Her iddianın desteklenmesi için gereken uygulamayı okuyun.
+3. Sonuç çıkarmadan önce somut kanıtları kaydedin.
+4. Doğrulanmış gerçekleri, çözülmemiş ya da doğrulanmamış öğelerden ayırın.
+5. Son sentezi ancak bu adımlardan sonra üretin.
 
-A search result identifies where to investigate; it is not evidence by
-itself that a feature or behavior exists.
+Arama sonucu, bir özelliğin ya da davranışın var olduğunu kanıtlamaz; sadece nerede incelenmesi gerektiğini gösterir.
 
-Do not claim that a provider, API, endpoint, feature, fallback, cache,
-retry mechanism, authentication method, or data field exists unless it
-has been verified in the relevant implementation.
+Bir sağlayıcı, API, uç nokta, özellik, yedekleme, önbellek, tekrar deneme mekanizması, kimlik doğrulama yöntemi ya da veri alanının var olduğunu, ilgili uygulama incelenip doğrulanmadıkça iddia etmeyin.
 
-When examining external data sources:
+Dış veri kaynaklarını incelerken:
 
-- Copy hostnames and endpoint paths only from code actually inspected.
-- Never reconstruct, autocomplete, normalize, or guess a URL.
-- Never infer an API provider solely from a module or class name.
-- Distinguish between URLs actually requested by code and URLs that appear
-  only in comments, examples, tests, or documentation.
-- If an endpoint or source cannot be verified, report it as `unverified`.
-- If code dynamically constructs an endpoint, describe only the verified
-  components and state that the final URL is constructed dynamically.
+- Host adlarını ve uç nokta yollarını sadece gerçek koddan kopyalayın.
+- Bir URL'i yeniden oluşturmayın, otomatik tamamlama yapmayın, normalleştirmeyin ya da tahmin etmeyin.
+- Sadece bir modül ya da sınıf ismi üzerinden bir API sağlayıcı tahmin etmeyin.
+- Kod tarafından gerçekten istenen URL'leri, yalnızca yorum, örnek, test ya da dokümantasyonda geçenlerle ayırın.
+- Doğrulanamayan bir uç nokta ya da kaynak varsa `unverified` olarak raporlayın.
+- Kod dinamik olarak bir uç nokta oluşturuyorsa, yalnızca doğrulanmış bileşenleri açıklayın ve son URL'nin dinamik olarak oluşturulduğunu belirtin.
 
-When reporting repository findings, use these confidence labels where
-appropriate:
+Repo bulgularını raporlarken, aşağıdaki güven seviyelerini kullanın:
 
-- `VERIFIED` — directly supported by inspected implementation.
-- `PARTIAL` — some relevant implementation was inspected, but the complete
-  behavior was not established.
-- `UNVERIFIED` — insufficient evidence was inspected to support the claim.
+- `VERIFIED` — incelenen uygulama tarafından doğrudan desteklenir.
+- `PARTIAL` — ilgili bir kısmı incelendi, ancak tam davranış belirlenemedi.
+- `MISSING` — ilgili yetenek veya bileşen için repository yeterli kapsamda incelendi ve hedeflenen işlevselliğin mevcut olmadığı doğrulandı.
+- `UNVERIFIED` — iddiayı destekleyecek yeterli kanıt bulunamadı.
 
-Never convert `PARTIAL` or `UNVERIFIED` findings into factual statements
-in summaries.
+`PARTIAL` ya da `UNVERIFIED` bulguları, özetlerde kesin ifadeye dönüştürülmemelidir.
 
-## Large Analysis Tasks
+- `MISSING` yalnızca ilgili alan yeterli kapsamda incelendikten sonra kullanılmalıdır.
+- Bir özelliğin arama sonucunda bulunamaması tek başına `MISSING` demek için yeterli değildir; inceleme yetersizse `UNVERIFIED` kullanılmalıdır.
+- `PARTIAL`, `MISSING` ve `UNVERIFIED` birbirinden kesin olarak ayrılmalıdır.
 
-Do not attempt to understand the entire repository in one reasoning step.
+## Büyük Analiz Görevleri
 
-For broad analysis:
+Tüm repoyu bir adımda anlamaya çalışmayın.
 
-1. Build a file inventory.
-2. Divide the investigation into logical components.
-3. Inspect one component at a time.
-4. Keep intermediate findings concise.
-5. Re-check important claims against implementation before the final report.
+Geniş analiz için:
 
-Do not stop repository exploration merely because enough information seems
-available to produce a plausible answer.
+1. Dosya envanteri oluşturun.
+2. Araştırmayı mantıksal bileşenlere bölün.
+3. Bir bileşeni tek tek inceleyin.
+4. Ara bulguları kısa tutun.
+5. Önemli iddiaları nihai rapordan önce tekrar kontrol edin.
 
-If the requested scope is too large to verify reliably in one pass, say so
-and propose or perform a staged investigation instead of filling gaps with
-assumptions.
+Yeterli bilgi olduğuna inanarak repo keşfini sonlandırmayın.
 
-Prefer targeted `Glob`, `Grep`, and `Read` operations over broad,
-unstructured searches.
+İstenen kapsam çok büyükse, tahmin yerine aşamalı bir inceleme önerin ya da yapın.
 
-Use only tools that are actually available in the current environment.
-If a tool call fails because the tool does not exist, do not invent another
-tool name. Continue using the available tools.
+Kapsamlı aramalar yerine hedeflenmiş `Glob`, `Grep` ve `Read` işlemlerini tercih edin.
 
-## Reporting Requirements
+Sadece ortamda mevcut araçları kullanın. Kullanılamayan bir araç çağrısı başarısız olursa başka bir araç uydurmayın; mevcut araçlarla devam edin.
 
-For technical repository analysis:
+## Raporlama Gereksinimleri
 
-- Reference important findings by repository-relative file path.
-- Distinguish observed implementation from interpretation.
-- Do not state repository-wide negatives such as "no implementation exists",
-  "all providers behave this way", or "there are no circular dependencies"
-  unless the relevant scope was systematically inspected.
-- Do not describe external endpoint availability unless it was actually
-  tested and such testing was part of the requested task.
-- Do not present malformed, incomplete, or uncertain URLs as valid endpoints.
-- Prefer omission or `UNVERIFIED` over speculation.
+Teknik repo analizi için:
 
-Before submitting a final analysis, perform a consistency check:
+- Önemli bulguları repo-relative dosya yolu ile referanslayın.
+- Gözlemlenen uygulamayı yorumdan ayırın.
+- Sistematik olarak incelenmeyen konularda "hiç uygulama yok", "tüm sağlayıcılar aynı davranır" gibi genellemeler yapmayın.
+- Dış uç nokta erişilebilirliğini, sadece istenen ve test edilen durumlarda raporlayın.
+- Belirsiz, eksik ya da tahmini URL'leri geçerli olarak sunmayın.
+- Spekülasyondan kaçınmak için yok sayın ya da `UNVERIFIED` kullanın.
 
-1. Is every important factual claim supported by inspected code?
-2. Did I infer anything from a filename or search result alone?
-3. Did I reconstruct or guess any external URL?
-4. Did I generalize from one provider or module to the whole repository?
-5. Did I claim absence without systematically checking the relevant scope?
+Final raporu göndermeden önce tutarlı kontrol yapın:
 
-If any answer indicates insufficient evidence, revise the report before
-submitting it.
+1. Her önemli iddia incelenen kodla destekleniyor mu?
+2. Dosya adı ya da arama sonucu üzerinden tahmin yapmadım mı?
+3. Bir URL'i yeniden oluşturup tahmin ettim mi?
+4. Tek bir sağlayıcıyı bütün repo için genelleme yaptım mı?
+5. Kapsamı sistematik incelemeden yokluk iddia ettim mi?
 
-## Agent Behavior
+Eksik kanıt varsa raporu revize edin.
 
-When asked to implement a feature:
+## Ajan Davranışı
 
-1. First inspect the relevant repository code and documentation.
-2. Explain the intended approach briefly.
-3. Implement the smallest complete change.
-4. Test the change.
-5. Report what changed, what was tested, and any remaining limitations.
+Bir özellik eklenmesi istendiğinde:
 
-Do not make unrelated improvements unless explicitly requested.
+1. İlgili repo kodu ve dokümantasyonu inceleyin.
+2. Yaklaşımı kısaca açıklayın.
+3. En küçük tam değişikliği uygulayın.
+4. Değişikliği test edin.
+5. Ne değiştiğini, neyin test edildiğini ve kalan kısıtlamaları raporlayın.
 
-When requirements are ambiguous and the ambiguity could affect data
-correctness, API compatibility, or architecture, stop and ask for
-clarification rather than guessing.
+İstenmeyen iyileştirmeler yapmayın.
 
-## Scope
+Gereksinimler belirsiz ve veri doğruluğu, API uyumluluğu ya da mimariyi etkileyebilecekse, tahmin yerine açıklama isteyin.
 
-The long-term objective is to build a reliable BIST research stack around
-`borsapy`, including additional market/company data sources and research
-capabilities.
+## Kapsam
 
-However, new functionality must be introduced incrementally and should
-not be added merely because it might be useful.
+Uzun vadeli hedef, `borsapy` etrafında güvenilir bir BIST araştırma yığını oluşturmak; ek piyasa/şirket veri kaynakları ve araştırma yetenekleri eklemek.
 
-Existing functionality is the baseline and must be protected.
+Ancak yeni işlevsellik, kademeli olarak ve sadece gerekli olduğunda eklenmelidir.
+
+Mevcut işlevsellik temel alınmalı ve korunmalıdır.
