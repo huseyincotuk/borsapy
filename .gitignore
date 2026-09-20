@@ -25,3 +25,8 @@ docs/alert_system_plan.md
 *.json
 !pyproject.json
 !package.json
+
+# Local secrets / credentials
+.env
+.env.*
+!.env.example
