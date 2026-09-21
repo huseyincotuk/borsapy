@@ -673,6 +673,41 @@ class Ticker(TechnicalMixin, TwitterMixin):
             self._enriched_info = EnrichedInfo(self)
         return self._enriched_info
 
+    def get_live_quote(self) -> dict[str, Any]:
+        """Return a minimal live quote snapshot.
+
+        The public API exposes only a stable subset of fields from the internal
+        TradingView provider. The method delegates to the existing provider and
+        constructs a new dictionary containing **only** the following keys if they
+        are present in the provider's response:
+
+        - ``symbol``
+        - ``exchange``
+        - ``last``
+        - ``bid``
+        - ``ask``
+        - ``volume``
+        - ``timestamp``
+
+        Fields that are missing from the provider result are omitted; fields that
+        are present with a ``None`` value are retained as ``None``.
+        """
+        # Retrieve the full quote from the internal provider.
+        raw = self._tradingview.get_quote(self._symbol)
+        # Define the allowed public keys.
+        allowed_keys = (
+            "symbol",
+            "exchange",
+            "last",
+            "bid",
+            "ask",
+            "volume",
+            "timestamp",
+        )
+        # Build a new dict containing only the allowed keys that exist in the raw
+        # result. ``dict`` comprehension preserves ``None`` values.
+        return {k: raw[k] for k in allowed_keys if k in raw}
+
     def history(
         self,
         period: str = "1mo",
