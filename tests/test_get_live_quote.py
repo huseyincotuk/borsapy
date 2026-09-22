@@ -34,6 +34,7 @@ def test_get_live_quote_all_fields():
         "ask": 101.0,
         "volume": 12345,
         "timestamp": 1700000000,
+        "auth_transport": "anonymous_token",
         # internal/private fields that should not be exposed
         "description": "some description",
         "currency": "TRY",
@@ -48,6 +49,7 @@ def test_get_live_quote_all_fields():
         "ask": 101.0,
         "volume": 12345,
         "timestamp": 1700000000,
+        "auth_transport": "anonymous_token",
     }
     assert result == expected
     # Ensure the internal provider was called with the correct symbol.

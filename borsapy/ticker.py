@@ -688,6 +688,13 @@ class Ticker(TechnicalMixin, TwitterMixin):
         - ``ask``
         - ``volume``
         - ``timestamp``
+        - ``auth_transport``
+
+        ``auth_transport`` is a categorical value (``"auth_token"``,
+        ``"anonymous_token"``, or ``"unknown"``) describing which token TYPE was
+        selected and sent for the exact WebSocket request that produced this
+        quote. It does NOT indicate server-side authentication, entitlements,
+        or realtime delivery, and it never contains credential material.
 
         Fields that are missing from the provider result are omitted; fields that
         are present with a ``None`` value are retained as ``None``.
@@ -703,6 +710,7 @@ class Ticker(TechnicalMixin, TwitterMixin):
             "ask",
             "volume",
             "timestamp",
+            "auth_transport",
         )
         # Build a new dict containing only the allowed keys that exist in the raw
         # result. ``dict`` comprehension preserves ``None`` values.

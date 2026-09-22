@@ -17,6 +17,9 @@ from borsapy.exceptions import APIError, AuthenticationError
 # Module-level auth storage
 _auth_credentials: dict | None = None
 
+# Placeholder token sent when no real auth token is configured.
+_ANONYMOUS_AUTH_TOKEN = "unauthorized_user_token"
+
 
 def set_tradingview_auth(
     username: str | None = None,
@@ -312,7 +315,7 @@ class TradingViewProvider(BaseProvider):
         global _auth_credentials
         if _auth_credentials and _auth_credentials.get("auth_token"):
             return _auth_credentials["auth_token"]
-        return "unauthorized_user_token"
+        return _ANONYMOUS_AUTH_TOKEN
 
     def _generate_session_id(self, prefix: str = "cs") -> str:
         """Generate a random session ID."""
@@ -552,7 +555,12 @@ class TradingViewProvider(BaseProvider):
             exchange: Exchange name (default: "BIST")
 
         Returns:
-            Dict with current price info
+            Dict with current price info, including ``auth_transport``:
+            a categorical value (``"auth_token"`` or ``"anonymous_token"``)
+            describing which token TYPE was selected and sent in the
+            ``set_auth_token`` message for this exact request. It says
+            nothing about server-side acceptance, entitlements, or whether
+            the feed is realtime. The token value itself is never exposed.
         """
         import websocket
 
@@ -563,6 +571,10 @@ class TradingViewProvider(BaseProvider):
         raw_data = {}
         data_complete = False
         error_msg = None
+        # Per-request auth transport classification: which token type was
+        # selected and sent for THIS WebSocket invocation. Only ever holds
+        # one of the fixed category strings; never the token itself.
+        auth_transport = "unknown"
 
         def on_message(ws, message):
             nonlocal raw_data, data_complete, error_msg
@@ -589,8 +601,15 @@ class TradingViewProvider(BaseProvider):
                     ws.close()
 
         def on_open(ws):
+            nonlocal auth_transport
             # 1. Set auth token (authenticated or unauthorized)
             auth_token = self._get_auth_token()
+            # Classify the token type selected for this exact request.
+            # Fixed category string only; the token value never flows
+            # into auth_transport.
+            auth_transport = (
+                "anonymous_token" if auth_token == _ANONYMOUS_AUTH_TOKEN else "auth_token"
+            )
             ws.send(self._create_message("set_auth_token", [auth_token]))
 
             # 2. Create quote session
@@ -661,6 +680,10 @@ class TradingViewProvider(BaseProvider):
             "timestamp": raw_data.get("lp_time"),
             "description": raw_data.get("description"),
             "currency": raw_data.get("currency_code"),
+            # Categorical per-request transport classification. Structurally
+            # limited to "auth_token" / "anonymous_token" / "unknown"; the
+            # actual token value can never appear here.
+            "auth_transport": auth_transport,
         }
 
         return quote_data
