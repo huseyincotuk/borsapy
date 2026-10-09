@@ -226,6 +226,11 @@ from borsapy.tv_reliability import (
     assess_live_quote_sanity,
     assess_quote_sequence,
 )
+from borsapy.tv_window import (
+    QuoteWindow,
+    WindowEntry,
+    ingest_quote,
+)
 from borsapy.twitter import search_tweets
 from borsapy.viop import VIOP
 
@@ -345,6 +350,10 @@ __all__ = [
     # Governed live-quote production gate
     "GovernedLiveQuote",
     "govern_live_quote",
+    # Bounded tick-window state machine
+    "WindowEntry",
+    "QuoteWindow",
+    "ingest_quote",
     # Exceptions
     "BorsapyError",
     "TickerNotFoundError",
