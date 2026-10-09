@@ -211,6 +211,10 @@ from borsapy.technical import (
     calculate_wma,
 )
 from borsapy.ticker import Ticker
+from borsapy.tv_production import (
+    GovernedLiveQuote,
+    govern_live_quote,
+)
 from borsapy.tv_reliability import (
     FreshnessAssessment,
     FreshnessPolicy,
@@ -338,6 +342,9 @@ __all__ = [
     "assess_live_quote_freshness",
     "assess_quote_sequence",
     "assess_live_quote_sanity",
+    # Governed live-quote production gate
+    "GovernedLiveQuote",
+    "govern_live_quote",
     # Exceptions
     "BorsapyError",
     "TickerNotFoundError",
