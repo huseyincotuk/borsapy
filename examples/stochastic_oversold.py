@@ -23,7 +23,7 @@ def find_stochastic_oversold(
     """Stochastic aşırı satım bölgesindeki hisseleri bul."""
 
     if verbose:
-        print(f"📊 Stochastic Aşırı Satım Tarayıcı")
+        print("📊 Stochastic Aşırı Satım Tarayıcı")
         print("=" * 60)
         print(f"   Aşırı satım seviyesi: %K < {oversold_level}")
         print()

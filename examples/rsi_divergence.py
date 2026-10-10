@@ -11,7 +11,6 @@ Kullanım:
 """
 
 import pandas as pd
-import numpy as np
 
 import borsapy as bp
 
@@ -91,7 +90,7 @@ def scan_rsi_divergence(
     """RSI divergence taraması yap."""
 
     if verbose:
-        print(f"📊 RSI Divergence Tarama")
+        print("📊 RSI Divergence Tarama")
         print(f"   - Endeks: {index}")
         print(f"   - RSI Period: {rsi_period}")
         print(f"   - Lookback: {lookback} gün")

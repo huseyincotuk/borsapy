@@ -175,7 +175,7 @@ def main():
     print()
 
     # Popüler fonları analiz et
-    results = analyze_popular_funds(verbose=True)
+    analyze_popular_funds(verbose=True)
 
     print()
     print("=" * 80)

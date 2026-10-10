@@ -14,7 +14,6 @@ Kullanım:
 """
 
 import pandas as pd
-import numpy as np
 
 import borsapy as bp
 
@@ -99,7 +98,7 @@ def scan_bollinger_squeeze(
     """Bollinger Squeeze taraması."""
 
     if verbose:
-        print(f"📊 Bollinger Band Squeeze Tarama")
+        print("📊 Bollinger Band Squeeze Tarama")
         print(f"   - Endeks: {index}")
         print(f"   - Lookback: {lookback_days} gün")
         print(f"   - Squeeze Eşiği: En düşük %{squeeze_percentile} bant genişliği")

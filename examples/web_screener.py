@@ -13,12 +13,12 @@ Gereksinimler:
     pip install borsapy flask pandas
 """
 
-import json
 import threading
 from datetime import datetime
-from flask import Flask, render_template_string, jsonify, request
 
 import pandas as pd
+from flask import Flask, jsonify, render_template_string, request
+
 import borsapy as bp
 
 app = Flask(__name__)

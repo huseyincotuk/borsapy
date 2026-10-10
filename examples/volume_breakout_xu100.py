@@ -101,7 +101,7 @@ def screen_volume_breakout(
         Kriterlere uyan hisseler DataFrame'i
     """
     if verbose:
-        print(f"📊 Tarama kriterleri:")
+        print("📊 Tarama kriterleri:")
         print(f"   - Endeks: {index}")
         print(f"   - Son {short_period} gün ort. hacim > Son {long_period} gün ort. hacim + %{threshold}")
         print()

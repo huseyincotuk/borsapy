@@ -144,7 +144,7 @@ def screen_low_pe_rising_margin(
         Kriterlere uyan hisseler DataFrame'i
     """
     if verbose:
-        print(f"📊 Tarama kriterleri:")
+        print("📊 Tarama kriterleri:")
         print(f"   - F/K < {pe_max}")
         print(f"   - Son {quarters} çeyrekte net kar marjı yükseliyor")
         if index:
@@ -165,7 +165,7 @@ def screen_low_pe_rising_margin(
 
     if low_pe_stocks.empty:
         if verbose:
-            print("❌ F/K < {} olan hisse bulunamadı.".format(pe_max))
+            print(f"❌ F/K < {pe_max} olan hisse bulunamadı.")
         return pd.DataFrame()
 
     if verbose:

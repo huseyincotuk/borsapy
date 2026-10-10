@@ -28,7 +28,7 @@ def analyze_fund_allocation(fund_code: str, verbose: bool = True) -> dict:
         info = fund.info
 
         if verbose:
-            print(f"📋 FON BİLGİLERİ:")
+            print("📋 FON BİLGİLERİ:")
             print(f"   Ad: {info.get('name', 'N/A')}")
             print(f"   Tip: {info.get('fund_type', 'N/A')}")
             print(f"   Fiyat: {info.get('price', 0):.4f} TL")
@@ -169,7 +169,7 @@ def main():
     print()
 
     # Örnek fon analizi - Teknoloji fonu
-    result = analyze_fund_allocation("YAY", verbose=True)
+    analyze_fund_allocation("YAY", verbose=True)
 
     print()
     print("=" * 70)

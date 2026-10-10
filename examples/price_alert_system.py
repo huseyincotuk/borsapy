@@ -16,8 +16,8 @@ Not: Ctrl+C ile durdurun.
 """
 
 import time
-from datetime import datetime
 from dataclasses import dataclass
+from datetime import datetime
 
 import borsapy as bp
 
@@ -125,7 +125,7 @@ class AlertSystem:
         self.stream.connect()
 
         # Tüm alarm sembollerine abone ol
-        symbols = set(a.symbol for a in self.alerts)
+        symbols = {a.symbol for a in self.alerts}
         for symbol in symbols:
             self.stream.subscribe(symbol)
 
@@ -196,7 +196,7 @@ def run_alert_system(alerts: AlertSystem, check_interval: float = 2.0, duration:
             for alert in triggered:
                 print()
                 print("🚨" * 20)
-                print(f"🔔 ALARM TETİKLENDİ!")
+                print("🔔 ALARM TETİKLENDİ!")
                 print(f"   Sembol: {alert.symbol}")
                 print(f"   Mesaj: {alert.message}")
                 print(f"   Fiyat: {alert.triggered_price:.2f}")

@@ -92,7 +92,7 @@ def analyze_multi_timeframe(symbol: str, verbose: bool = True) -> dict:
         print(f"{'Zaman Dilimi':<25} {'Trend':<10} {'RSI':<12} {'MACD':<10} {'Fiyat':>10}")
         print("-" * 70)
 
-        for period, data in results.items():
+        for _period, data in results.items():
             if 'error' in data:
                 print(f"{data['label']:<25} ERROR")
                 continue
@@ -126,7 +126,7 @@ def scan_aligned_stocks(index_name: str = "XU030", verbose: bool = True) -> dict
     """Tüm zaman dilimlerinde aynı yönde sinyal veren hisseleri bul."""
 
     if verbose:
-        print(f"🔍 Zaman Dilimi Uyumlu Hisse Tarayıcı")
+        print("🔍 Zaman Dilimi Uyumlu Hisse Tarayıcı")
         print("=" * 70)
         print()
 

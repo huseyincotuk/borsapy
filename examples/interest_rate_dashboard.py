@@ -15,7 +15,6 @@ Kullanım:
     python examples/interest_rate_dashboard.py
 """
 
-import pandas as pd
 from datetime import datetime
 
 import borsapy as bp

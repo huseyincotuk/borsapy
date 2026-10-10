@@ -19,7 +19,7 @@ def find_macd_reversals(index_name: str = "XU030", verbose: bool = True) -> dict
     """MACD histogram tersine dönüşlerini bul."""
 
     if verbose:
-        print(f"📊 MACD Histogram Tersine Dönüş Tarayıcı")
+        print("📊 MACD Histogram Tersine Dönüş Tarayıcı")
         print("=" * 60)
         print()
 

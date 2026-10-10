@@ -10,7 +10,6 @@ Kullanım:
 """
 
 import pandas as pd
-import numpy as np
 
 import borsapy as bp
 
@@ -126,7 +125,7 @@ def analyze_pe_band(symbol: str, verbose: bool = True) -> dict:
         print(f"   Mevcut F/K ({current_pe:.2f}) tarihsel verilerin %{pe_percentile:.0f}'inde")
         print()
 
-        print(f"💎 HEDEF FİYAT (Ortalama F/K'ya göre):")
+        print("💎 HEDEF FİYAT (Ortalama F/K'ya göre):")
         print(f"   Adil Değer: {fair_price:.2f} TL")
         upside_emoji = "📈" if upside > 0 else "📉"
         print(f"   Potansiyel: {upside_emoji} %{upside:+.1f}")

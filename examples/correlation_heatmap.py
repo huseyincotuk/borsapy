@@ -16,8 +16,8 @@ Kullanım:
     python examples/correlation_heatmap.py
 """
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 import borsapy as bp
 
@@ -146,7 +146,7 @@ def analyze_correlations(
         symbols = idx.component_symbols[:15]  # İlk 15
 
     if verbose:
-        print(f"📊 Korelasyon Analizi")
+        print("📊 Korelasyon Analizi")
         print(f"   - Hisse sayısı: {len(symbols)}")
         print(f"   - Dönem: {period}")
         print()

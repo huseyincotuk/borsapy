@@ -43,7 +43,7 @@ def analyze_dividend_history(symbol: str) -> dict | None:
 
         # Kesintisiz ödeme sayısı
         consecutive_years = 0
-        for i, amount in enumerate(dividend_amounts):
+        for _, amount in enumerate(dividend_amounts):
             if amount > 0:
                 consecutive_years += 1
             else:
@@ -83,7 +83,7 @@ def analyze_dividend_history(symbol: str) -> dict | None:
             'last_year': last_year,
             'dividend_cagr': round(cagr, 1) if cagr else None,
             'last_price': round(last_price, 2) if last_price else None,
-            'history': list(zip(years, [round(d, 4) for d in dividend_amounts])),
+            'history': list(zip(years, [round(d, 4) for d in dividend_amounts], strict=False)),
         }
 
     except Exception:
@@ -134,7 +134,7 @@ def scan_dividend_champions(
     """Temettü şampiyonları taraması."""
 
     if verbose:
-        print(f"📊 Temettü Şampiyonları Tarama")
+        print("📊 Temettü Şampiyonları Tarama")
         print(f"   - Endeks: {index}")
         print(f"   - Min kesintisiz yıl: {min_consecutive_years}")
         print(f"   - Min temettü verimi: %{min_yield}")

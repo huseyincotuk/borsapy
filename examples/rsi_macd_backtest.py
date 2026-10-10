@@ -66,7 +66,7 @@ def run_backtest(
     """Backtesti çalıştır."""
 
     if verbose:
-        print(f"📊 RSI + MACD Strateji Backtesti")
+        print("📊 RSI + MACD Strateji Backtesti")
         print("=" * 70)
         print()
         print(f"   Sembol: {symbol}")
@@ -111,7 +111,6 @@ def run_backtest(
             print()
 
             # Risk metrikleri
-            import math
             print("📉 RİSK METRİKLERİ:")
             print(f"   Max Drawdown: %{result.max_drawdown:.2f}")
             sharpe = result.sharpe_ratio if result.sharpe_ratio == result.sharpe_ratio else 0
@@ -223,7 +222,7 @@ def main():
     print()
 
     # Tek hisse detaylı backtest
-    result = run_backtest(
+    run_backtest(
         symbol="THYAO",
         period="1y",
         capital=100000,

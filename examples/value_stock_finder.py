@@ -169,7 +169,7 @@ def scan_value_stocks(
     """Değer hissesi taraması."""
 
     if verbose:
-        print(f"📊 Değer Hissesi Tarama (Graham/Buffett Tarzı)")
+        print("📊 Değer Hissesi Tarama (Graham/Buffett Tarzı)")
         print(f"   - Endeks: {index}")
         print(f"   - Max F/K: {pe_max}")
         print(f"   - Max PD/DD: {pb_max}")

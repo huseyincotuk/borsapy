@@ -89,7 +89,7 @@ def scan_ma_crossover(
     """Golden/Death Cross taraması."""
 
     if verbose:
-        print(f"📊 Golden/Death Cross Tarama")
+        print("📊 Golden/Death Cross Tarama")
         print(f"   - Endeks: {index}")
         print(f"   - Hızlı SMA: {fast_period} gün")
         print(f"   - Yavaş SMA: {slow_period} gün")

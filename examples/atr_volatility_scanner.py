@@ -18,7 +18,7 @@ def scan_volatility(index_name: str = "XU030", verbose: bool = True) -> dict:
     """ATR bazlı volatilite taraması yap."""
 
     if verbose:
-        print(f"📊 ATR Volatilite Tarayıcı")
+        print("📊 ATR Volatilite Tarayıcı")
         print("=" * 60)
         print()
 

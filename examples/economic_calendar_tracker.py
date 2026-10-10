@@ -14,8 +14,8 @@ Kullanım:
     python examples/economic_calendar_tracker.py
 """
 
+
 import pandas as pd
-from datetime import datetime, timedelta
 
 import borsapy as bp
 
@@ -183,7 +183,7 @@ def main():
     print()
 
     # Sadece Türkiye
-    tr_events = show_turkey_events(verbose=True)
+    show_turkey_events(verbose=True)
 
     if not all_events.empty:
         all_events.to_csv("economic_calendar.csv", index=False)

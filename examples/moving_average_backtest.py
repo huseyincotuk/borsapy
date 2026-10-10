@@ -56,7 +56,7 @@ def run_sma_backtest(
         print(f"📊 SMA CROSSOVER BACKTEST: {symbol}")
         print("=" * 70)
         print()
-        print(f"   Strateji: SMA20/SMA50 Crossover")
+        print("   Strateji: SMA20/SMA50 Crossover")
         print(f"   Dönem: {period}")
         print(f"   Sermaye: {capital:,.0f} TL")
         print()

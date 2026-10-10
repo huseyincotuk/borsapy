@@ -14,9 +14,9 @@ Kullanım:
     python examples/portfolio_optimizer.py
 """
 
-import pandas as pd
+
 import numpy as np
-from datetime import datetime, timedelta
+import pandas as pd
 
 import borsapy as bp
 
@@ -113,13 +113,13 @@ def monte_carlo_optimization(
     return {
         'symbols': symbols,
         'max_sharpe': {
-            'weights': dict(zip(symbols, np.round(max_sharpe_weights * 100, 2))),
+            'weights': dict(zip(symbols, np.round(max_sharpe_weights * 100, 2), strict=False)),
             'return': round(results[0, max_sharpe_idx] * 100, 2),
             'volatility': round(results[1, max_sharpe_idx] * 100, 2),
             'sharpe': round(results[2, max_sharpe_idx], 3),
         },
         'min_volatility': {
-            'weights': dict(zip(symbols, np.round(min_vol_weights * 100, 2))),
+            'weights': dict(zip(symbols, np.round(min_vol_weights * 100, 2), strict=False)),
             'return': round(results[0, min_vol_idx] * 100, 2),
             'volatility': round(results[1, min_vol_idx] * 100, 2),
             'sharpe': round(results[2, min_vol_idx], 3),
@@ -148,7 +148,7 @@ def optimize_portfolio(
     """Portföy optimizasyonu çalıştır."""
 
     if verbose:
-        print(f"📊 Portföy Optimizasyonu (Modern Portföy Teorisi)")
+        print("📊 Portföy Optimizasyonu (Modern Portföy Teorisi)")
         print(f"   - Hisseler: {', '.join(symbols)}")
         print(f"   - Dönem: {period}")
         print(f"   - Simülasyon: {num_simulations:,} portföy")

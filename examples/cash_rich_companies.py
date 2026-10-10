@@ -122,9 +122,9 @@ def scan_cash_rich(
     """Nakit zengini şirket taraması."""
 
     if verbose:
-        print(f"📊 Nakit Zengini Şirketler Tarama")
+        print("📊 Nakit Zengini Şirketler Tarama")
         print(f"   - Endeks: {index}")
-        print(f"   - Kriter: Net Nakit > 0 (Nakit > Borç)")
+        print("   - Kriter: Net Nakit > 0 (Nakit > Borç)")
         print()
 
     idx = bp.Index(index)

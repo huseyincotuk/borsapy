@@ -93,7 +93,7 @@ def scan_supertrend_signals(
     """Supertrend sinyal taraması."""
 
     if verbose:
-        print(f"📊 Supertrend Sinyal Tarama")
+        print("📊 Supertrend Sinyal Tarama")
         print(f"   - Endeks: {index}")
         print(f"   - ATR Period: {atr_period}")
         print(f"   - Multiplier: {multiplier}")

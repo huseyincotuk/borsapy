@@ -178,7 +178,7 @@ def compare_with_equal_weight(
         rp_vol = sum(a['weight'] / 100 * a['volatility'] for a in rp['assets'])
         eq_vol = sum(equal_weight / 100 * a['volatility'] for a in rp['assets'])
 
-        print(f"📈 Tahmini Portföy Volatilitesi:")
+        print("📈 Tahmini Portföy Volatilitesi:")
         print(f"   Risk Paritesi: %{rp_vol:.1f}")
         print(f"   Eşit Ağırlık: %{eq_vol:.1f}")
         print(f"   Fark: %{rp_vol - eq_vol:+.1f}")

@@ -124,7 +124,7 @@ def scan_growth_stocks(
     """Büyüme hissesi taraması."""
 
     if verbose:
-        print(f"📊 Büyüme Hissesi Tarama")
+        print("📊 Büyüme Hissesi Tarama")
         print(f"   - Endeks: {index}")
         print(f"   - Min pozitif büyüme çeyreği: {min_growth_quarters}/4")
         print(f"   - Min ortalama büyüme: %{min_avg_growth}")

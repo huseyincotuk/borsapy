@@ -145,7 +145,7 @@ def generate_weekly_report(verbose: bool = True) -> dict:
     for symbol, name in fx_assets:
         try:
             fx = bp.FX(symbol)
-            current = fx.current
+            _ = fx.current
             df = fx.history(period="1w")
 
             if df is not None and len(df) > 1:

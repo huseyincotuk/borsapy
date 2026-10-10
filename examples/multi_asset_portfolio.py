@@ -11,7 +11,6 @@ Kullanım:
     python examples/multi_asset_portfolio.py
 """
 
-import pandas as pd
 
 import borsapy as bp
 
@@ -155,7 +154,7 @@ def main():
     portfolio = create_sample_portfolio()
 
     # Analiz
-    summary = analyze_portfolio(portfolio, verbose=True)
+    analyze_portfolio(portfolio, verbose=True)
 
     # Holdings'i kaydet
     holdings = portfolio.holdings
