@@ -211,6 +211,12 @@ from borsapy.technical import (
     calculate_wma,
 )
 from borsapy.ticker import Ticker
+from borsapy.tv_loop import (
+    LiveLoopResult,
+    consecutive_unusable,
+    run_quote_loop,
+    ticker_quote_source,
+)
 from borsapy.tv_production import (
     GovernedLiveQuote,
     govern_live_quote,
@@ -354,6 +360,11 @@ __all__ = [
     "WindowEntry",
     "QuoteWindow",
     "ingest_quote",
+    # Live-quote loop driver
+    "LiveLoopResult",
+    "run_quote_loop",
+    "consecutive_unusable",
+    "ticker_quote_source",
     # Exceptions
     "BorsapyError",
     "TickerNotFoundError",
