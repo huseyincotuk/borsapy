@@ -1,6 +1,7 @@
 """TradingView WebSocket provider for real-time and historical data."""
 
 import json
+import os
 import platform
 import random
 import re
@@ -20,6 +21,65 @@ _auth_credentials: dict | None = None
 # Placeholder token sent when no real auth token is configured.
 _ANONYMOUS_AUTH_TOKEN = "unauthorized_user_token"
 
+# Pinned environment variable names for the lazy environment bootstrap.
+_ENV_SESSION_VAR = "TRADINGVIEW_SESSION"
+_ENV_SESSION_SIGN_VAR = "TRADINGVIEW_SESSION_SIGN"
+
+# Module-level guard: at most ONE environment bootstrap attempt per process.
+# A failed attempt also counts as attempted (no retry storms, no per-quote
+# network calls). ``clear_tradingview_auth`` resets it to False.
+_env_bootstrap_attempted = False
+
+
+def _env_bootstrap() -> None:
+    """Attempt exactly one lazy environment credential bootstrap.
+
+    Reads the pinned variables ``TRADINGVIEW_SESSION`` (required) and
+    ``TRADINGVIEW_SESSION_SIGN`` (optional, default empty string) from
+    ``os.environ`` and resolves the real ``auth_token`` through the EXISTING
+    :meth:`TradingViewProvider.get_user` code path — the same path
+    ``set_tradingview_auth`` uses. On success the credentials are stored in the
+    module-global credential store with the same shape
+    ``set_tradingview_auth`` produces, so downstream behavior is
+    indistinguishable from the explicit API.
+
+    An empty or whitespace-only ``TRADINGVIEW_SESSION`` is treated as absent.
+    A guarded ``Exception`` catches invalid/expired sessions and network
+    failures so an optional-enhancement failure can never break quote
+    acquisition: the caller falls back to the anonymous token without raising.
+    Credential material is never logged or surfaced in any exception.
+    """
+    global _auth_credentials, _env_bootstrap_attempted
+
+    if _env_bootstrap_attempted:
+        return
+    _env_bootstrap_attempted = True
+
+    session = os.environ.get(_ENV_SESSION_VAR, "")
+    if not session or not session.strip():
+        return
+
+    session_sign = os.environ.get(_ENV_SESSION_SIGN_VAR, "") or ""
+
+    try:
+        provider = get_tradingview_provider()
+        user_info = provider.get_user(session, session_sign)
+        auth_token = user_info.get("auth_token") if user_info else None
+        if auth_token:
+            _auth_credentials = {
+                "session": session,
+                "session_sign": session_sign,
+                "auth_token": auth_token,
+                "user": user_info,
+            }
+    except Exception:
+        # Defense in depth: wrap the bootstrap call ONLY. An invalid or
+        # expired session (AuthenticationError), network failure or any
+        # other error must fall back to the anonymous token without raising
+        # and without leaking credential material.
+        return
+
+
 
 def set_tradingview_auth(
     username: str | None = None,
@@ -33,6 +93,20 @@ def set_tradingview_auth(
     You can authenticate in two ways:
     1. Username/password: Will perform login and get session tokens
     2. Session tokens: Use existing sessionid and sessionid_sign cookies
+
+    Environment-based activation
+    ----------------------------
+    Credentials may also be activated from the process environment without
+    calling this function. On the first token acquisition the provider lazily
+    reads ``TRADINGVIEW_SESSION`` (required) and ``TRADINGVIEW_SESSION_SIGN``
+    (optional, default empty string) from ``os.environ`` and resolves the real
+    auth token through the same :meth:`get_user` path used here. Precedence is:
+    explicit credentials set via this function (which always win and skip the
+    environment bootstrap), then the single lazy environment bootstrap, then
+    the anonymous token. The bootstrap fails closed: on an invalid/expired
+    session or network failure it silently falls back to the anonymous token
+    without raising. ``.env`` files are never auto-loaded; sourcing them
+    remains the caller's job.
 
     Args:
         username: TradingView username or email
@@ -53,7 +127,7 @@ def set_tradingview_auth(
         >>> stock = bp.Ticker("THYAO")
         >>> stock.info["last"]  # Real-time price (no 15min delay)
     """
-    global _auth_credentials
+    global _auth_credentials, _env_bootstrap_attempted
 
     provider = get_tradingview_provider()
 
@@ -78,13 +152,22 @@ def set_tradingview_auth(
     else:
         raise ValueError("Provide either username/password or session/session_sign")
 
+    # Explicit credentials win: never attempt the environment bootstrap.
+    _env_bootstrap_attempted = True
+
     return _auth_credentials
 
 
 def clear_tradingview_auth() -> None:
-    """Clear TradingView authentication credentials."""
-    global _auth_credentials
+    """Clear TradingView authentication credentials.
+
+    Also resets the lazy environment-bootstrap guard so that a later token
+    acquisition may attempt the environment bootstrap again, returning the
+    module to its pristine state.
+    """
+    global _auth_credentials, _env_bootstrap_attempted
     _auth_credentials = None
+    _env_bootstrap_attempted = False
 
 
 def get_tradingview_auth() -> dict | None:
@@ -311,10 +394,23 @@ class TradingViewProvider(BaseProvider):
         return user_data
 
     def _get_auth_token(self) -> str:
-        """Get auth token - either from credentials or unauthorized."""
-        global _auth_credentials
+        """Get auth token via the pinned precedence chain.
+
+        Order: (a) explicit ``set_tradingview_auth`` credentials (unchanged,
+        wins), (b) ONE lazy environment bootstrap attempt per process,
+        (c) anonymous token (unchanged default). Both the quote path and the
+        stream path flow through this single decision point.
+        """
+        # (a) Explicit credentials set via set_tradingview_auth always win.
         if _auth_credentials and _auth_credentials.get("auth_token"):
             return _auth_credentials["auth_token"]
+
+        # (b) Lazy environment bootstrap, attempted at most once per process.
+        _env_bootstrap()
+        if _auth_credentials and _auth_credentials.get("auth_token"):
+            return _auth_credentials["auth_token"]
+
+        # (c) Unchanged anonymous default.
         return _ANONYMOUS_AUTH_TOKEN
 
     def _generate_session_id(self, prefix: str = "cs") -> str:

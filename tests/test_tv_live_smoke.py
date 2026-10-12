@@ -139,6 +139,14 @@ def test_live_quote_public_shape():
     if auth_transport is not None:
         assert auth_transport in _AUTH_TRANSPORTS
 
+    # Environment-gated activation: when the test process has a non-blank
+    # ``TRADINGVIEW_SESSION`` loaded, the lazy environment bootstrap MUST have
+    # activated the authenticated transport for this real quote. When absent,
+    # nothing about the transport is asserted (anonymous remains acceptable).
+    # Credential values are never read, printed or persisted here.
+    if os.environ.get("TRADINGVIEW_SESSION", "").strip():
+        assert auth_transport == "auth_token"
+
     # Golden boundary table (closed-left/open-right).
     assert _epoch_unit_scale(10**9) == 1
     assert _epoch_unit_scale(10**12 - 1) == 1
