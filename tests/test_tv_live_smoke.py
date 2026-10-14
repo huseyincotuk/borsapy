@@ -18,6 +18,12 @@ or printed, and none are required.
 
 There are no retries around any network call: a provider ``APIError`` (or any
 other transport exception) fails the smoke test verbatim.
+
+Race caveat: the deterministic evaluation-clock sampling race (a pre-fetch
+governing instant making a freshly fetched quote look future-dated) is
+structurally CLOSED by post-fetch sampling — ``run_quote_loop`` threads its
+``clock`` into ``ingest_quote``, which samples the governing instant AFTER the
+fetch returns and BEFORE governing. The assertions below are unchanged.
 """
 
 from __future__ import annotations

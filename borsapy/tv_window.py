@@ -145,17 +145,18 @@ def ingest_quote(
     window: QuoteWindow,
     source: Callable[[], Mapping[str, Any]],
     *,
-    evaluated_at_ms: int,
+    evaluated_at_ms: int | None = None,
     policy: Any,
     sessions: Sequence[Any] | None = None,
     max_gap_ms: int | None = None,
+    clock: Callable[[], int] | None = None,
 ) -> QuoteWindow:
     """Ingest one tick into a new bounded window.
 
     Calls ``source`` EXACTLY ONCE in total, delegates ALL assessment to the
     frozen :func:`~borsapy.tv_production.govern_live_quote` (passing the
-    window's raw mappings as ``prior_quotes`` in ingest order and forwarding
-    ``evaluated_at_ms`` / ``policy`` / ``sessions`` / ``max_gap_ms`` verbatim),
+    window's raw mappings as ``prior_quotes`` in ingest order and forwarding the
+    evaluation instant, ``policy`` / ``sessions`` / ``max_gap_ms`` verbatim),
     appends the new :class:`WindowEntry` and returns a NEW :class:`QuoteWindow`.
     When the result would exceed ``max_size`` the oldest entry is evicted (FIFO)
     and ``dropped_count`` increments by exactly one.
@@ -163,23 +164,41 @@ def ingest_quote(
     The input window is never mutated. A source exception propagates verbatim
     and no new window is produced.
 
+    Evaluation instant (``evaluated_at_ms`` is "the instant the quote was
+    evaluated — sampled after retrieval, before governing"):
+
+    * when ``clock`` is ``None`` the caller-supplied ``evaluated_at_ms`` governs
+      unchanged, exactly as before;
+    * when ``clock`` is provided, the governing instant is sampled from ``clock``
+      AFTER ``source`` has returned and BEFORE governing, and used both for
+      :func:`~borsapy.tv_production.govern_live_quote` and for the new entry's
+      ``evaluated_at_ms``. This closes the deterministic clock-sampling race
+      where a pre-fetch instant makes a freshly fetched quote look
+      "future-dated" to the frozen fail-closed guard.
+
     Args:
         window: The current :class:`QuoteWindow`.
         source: A no-argument callable returning a quote mapping. Called exactly
             once; exceptions propagate unchanged.
         evaluated_at_ms: Caller-supplied evaluation instant, in milliseconds.
+            Required when ``clock`` is ``None``; ignored (the ``clock`` sample
+            governs) when ``clock`` is provided.
         policy: A :class:`~borsapy.tv_reliability.FreshnessPolicy`.
         sessions: Optional caller-supplied session windows; ``None`` disables
             gating.
         max_gap_ms: Positive integer maximum tolerated consecutive gap, required
             exactly when the window already holds prior quotes.
+        clock: ``None`` or a no-argument callable returning the evaluation
+            instant in milliseconds. When provided it is sampled AFTER ``source``
+            returns and governs the tick.
 
     Returns:
         A new :class:`QuoteWindow`.
 
     Raises:
-        TypeError: If ``window`` is not a :class:`QuoteWindow`, ``source`` is not
-            callable or the frozen gate rejects an input.
+        TypeError: If ``window`` is not a :class:`QuoteWindow`, ``source`` or
+            ``clock`` is not callable, ``evaluated_at_ms`` is ``None`` while
+            ``clock`` is ``None``, or the frozen gate rejects an input.
         ValueError: If the frozen gate rejects an out-of-domain value.
     """
     if not isinstance(window, QuoteWindow):
@@ -191,24 +210,53 @@ def ingest_quote(
             f"source must be a callable returning a mapping, got "
             f"{type(source).__name__}"
         )
+    if clock is not None and not callable(clock):
+        raise TypeError(
+            f"clock must be a callable returning an int, got {type(clock).__name__}"
+        )
+    if clock is None and evaluated_at_ms is None:
+        raise TypeError("evaluated_at_ms is required when clock is not provided")
 
-    captured: list[Mapping[str, Any]] = []
+    prior_quotes = [entry.raw_quote for entry in window.entries]
 
-    def _capturing_source() -> Mapping[str, Any]:
-        quote = source()
-        captured.append(quote)
-        return quote
+    if clock is None:
+        captured: list[Mapping[str, Any]] = []
 
-    governed = govern_live_quote(
-        _capturing_source,
-        evaluated_at_ms=evaluated_at_ms,
-        policy=policy,
-        sessions=sessions,
-        prior_quotes=[entry.raw_quote for entry in window.entries],
-        max_gap_ms=max_gap_ms,
-    )
+        def _capturing_source() -> Mapping[str, Any]:
+            quote = source()
+            captured.append(quote)
+            return quote
 
-    raw_quote = captured[0]
+        governed = govern_live_quote(
+            _capturing_source,
+            evaluated_at_ms=evaluated_at_ms,
+            policy=policy,
+            sessions=sessions,
+            prior_quotes=prior_quotes,
+            max_gap_ms=max_gap_ms,
+        )
+
+        raw_quote = captured[0]
+    else:
+        # Fetch FIRST, then sample the governing instant from ``clock``: the
+        # evaluation instant reflects the post-retrieval moment and is never a
+        # pre-fetch sample. The quote is replayed to the frozen gate so the
+        # caller-supplied ``source`` is still invoked exactly once.
+        raw_quote = source()
+        sampled_evaluated_at_ms = clock()
+
+        def _replay_source() -> Mapping[str, Any]:
+            return raw_quote
+
+        governed = govern_live_quote(
+            _replay_source,
+            evaluated_at_ms=sampled_evaluated_at_ms,
+            policy=policy,
+            sessions=sessions,
+            prior_quotes=prior_quotes,
+            max_gap_ms=max_gap_ms,
+        )
+
     entries = window.entries + (WindowEntry(raw_quote=raw_quote, governed=governed),)
     dropped_count = window.dropped_count
     if len(entries) > window.max_size:

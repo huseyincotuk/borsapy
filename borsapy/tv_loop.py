@@ -131,17 +131,23 @@ def run_quote_loop(
     clock, never sleeps, never performs network access and re-implements none of
     the assessment, verdict, prior-quote joining or FIFO logic. Each executed
     iteration consults the optional ``stop`` predicate first, then (from the
-    second iteration onward) calls the optional ``pause``, then reads the
-    caller-supplied ``clock`` exactly once and finally performs EXACTLY one
-    :func:`~borsapy.tv_window.ingest_quote` call.
+    second iteration onward) calls the optional ``pause``, then performs EXACTLY
+    one :func:`~borsapy.tv_window.ingest_quote` call. The governing evaluation
+    instant ("the instant the quote was evaluated — sampled after retrieval,
+    before governing") is sampled INSIDE that call: ``ingest_quote`` reads the
+    caller-supplied ``clock`` exactly once, AFTER its internal ``source()``
+    fetch returns and BEFORE governing, so the loop never feeds a pre-fetch
+    clock sample into governing.
 
     Args:
         window: The initial :class:`~borsapy.tv_window.QuoteWindow`. It may be
             pre-seeded (non-empty).
         source: A no-argument callable returning a quote mapping. In production
             this is the real transport bound via :func:`ticker_quote_source`.
-        clock: A no-argument callable returning the per-tick ``evaluated_at_ms``
-            integer. The loop never reads a wall clock.
+        clock: A no-argument callable returning the governing
+            ``evaluated_at_ms`` integer. It is threaded into
+            :func:`~borsapy.tv_window.ingest_quote`, which samples it after the
+            fetch and before governing. The loop never reads a wall clock.
         policy: Forwarded verbatim to the frozen layers; the loop does not
             pre-validate it.
         sessions: Optional caller-supplied session windows forwarded verbatim.
@@ -216,15 +222,14 @@ def run_quote_loop(
             )
         if index > 1 and pause is not None:
             pause()
-        evaluated_at_ms = clock()
         tick_gap = gap if len(current) > 0 else None
         current = ingest_quote(
             current,
             source,
-            evaluated_at_ms=evaluated_at_ms,
             policy=policy,
             sessions=sessions,
             max_gap_ms=tick_gap,
+            clock=clock,
         )
         iterations = index
 

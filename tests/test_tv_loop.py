@@ -454,7 +454,14 @@ def test_loop_max_gap_threading(monkeypatch):
     real_ingest = tv_loop.ingest_quote
 
     def wrapper(
-        window, source, *, evaluated_at_ms, policy, sessions=None, max_gap_ms=None
+        window,
+        source,
+        *,
+        evaluated_at_ms=None,
+        policy,
+        sessions=None,
+        max_gap_ms=None,
+        clock=None,
     ):
         received.append(max_gap_ms)
         return real_ingest(
@@ -464,6 +471,7 @@ def test_loop_max_gap_threading(monkeypatch):
             policy=policy,
             sessions=sessions,
             max_gap_ms=max_gap_ms,
+            clock=clock,
         )
 
     monkeypatch.setattr(tv_loop, "ingest_quote", wrapper)
@@ -493,7 +501,14 @@ def test_loop_preseeded_window_forwards_max_gap_first_tick(monkeypatch):
     real_ingest = tv_loop.ingest_quote
 
     def wrapper(
-        window, source, *, evaluated_at_ms, policy, sessions=None, max_gap_ms=None
+        window,
+        source,
+        *,
+        evaluated_at_ms=None,
+        policy,
+        sessions=None,
+        max_gap_ms=None,
+        clock=None,
     ):
         received.append(max_gap_ms)
         return real_ingest(
@@ -503,6 +518,7 @@ def test_loop_preseeded_window_forwards_max_gap_first_tick(monkeypatch):
             policy=policy,
             sessions=sessions,
             max_gap_ms=max_gap_ms,
+            clock=clock,
         )
 
     monkeypatch.setattr(tv_loop, "ingest_quote", wrapper)
@@ -569,7 +585,10 @@ def test_loop_source_exception_propagates_verbatim():
         )
 
     assert excinfo.value is boom
-    assert len(clock_calls) == 2
+    # The governing clock sample is taken AFTER the fetch: iteration 1 fetches
+    # and samples once; iteration 2's fetch raises before its sample, so the
+    # failed tick contributes no clock() call.
+    assert len(clock_calls) == 1
 
 
 def test_loop_clock_and_pause_exceptions_propagate():
@@ -867,3 +886,153 @@ def test_public_imports():
     ):
         assert name in bp.__all__
         assert hasattr(bp, name)
+
+
+#: Freshness policy used by the evaluation-clock race regression tests.
+_RACE_POLICY = FreshnessPolicy(fresh_max_age_ms=60_000, stale_max_age_ms=300_000)
+
+
+def test_run_quote_loop_race_clock_advances_during_fetch_does_not_raise():
+    """Golden case-1: a fetch that advances the clock must not trip the guard.
+
+    ``clock`` starts at 1500; ``source`` models the ~1.5 s fetch latency by
+    advancing it to 1600 and returns a quote stamped 1600. Sampling the governing
+    instant AFTER the fetch makes the age ``0`` and the verdict ``USABLE``; the
+    pre-fetch sampling would make age ``-1000`` and raise. This is the RED proof
+    of the regression.
+    """
+    state = {"now": 1500}
+
+    def clock():
+        return state["now"]
+
+    def source():
+        state["now"] = 1600
+        return _quote(timestamp=1600)
+
+    result = run_quote_loop(
+        _empty_window(),
+        source,
+        clock=clock,
+        policy=_RACE_POLICY,
+        sessions=None,
+        max_gap_ms=None,
+        tick_budget=1,
+    )
+
+    governed = result.window.entries[0].governed
+    assert governed.evaluated_at_ms == 1600
+    assert governed.evaluated_at_ms - governed.quote_timestamp_ms == 0
+    assert governed.verdict == "USABLE"
+
+
+def test_run_quote_loop_future_quote_still_fails_closed():
+    """Case-2: a genuinely future timestamp still fails closed after the fix.
+
+    The post-fetch clock reads 1600 while the quote is stamped 1700: the age is
+    ``-1000`` and the frozen fail-closed guard must still raise ``ValueError``.
+    """
+    state = {"now": 1500}
+
+    def clock():
+        return state["now"]
+
+    def source():
+        state["now"] = 1600
+        return _quote(timestamp=1700)
+
+    with pytest.raises(ValueError) as excinfo:
+        run_quote_loop(
+            _empty_window(),
+            source,
+            clock=clock,
+            policy=_RACE_POLICY,
+            sessions=None,
+            max_gap_ms=None,
+            tick_budget=1,
+        )
+
+    message = str(excinfo.value)
+    assert "future" in message
+
+
+def test_run_quote_loop_ordinary_tick_unaffected():
+    """Case-3: the ordinary no-latency tick is unchanged by the fix.
+
+    The clock reads 1600 before and after the (instant) fetch and the quote is
+    stamped 1500: age ``100`` and verdict ``USABLE``.
+    """
+    state = {"now": 1600}
+
+    def clock():
+        return state["now"]
+
+    def source():
+        return _quote(timestamp=1500)
+
+    result = run_quote_loop(
+        _empty_window(),
+        source,
+        clock=clock,
+        policy=_RACE_POLICY,
+        sessions=None,
+        max_gap_ms=None,
+        tick_budget=1,
+    )
+
+    governed = result.window.entries[0].governed
+    assert governed.freshness.age_ms == 100
+    assert governed.verdict == "USABLE"
+
+
+def test_run_quote_loop_clock_sampled_after_source_call():
+    """Case-4: the governing clock sample happens AFTER the fetch, once per tick.
+
+    An instrumented ``clock``/``source`` pair records a single shared event log.
+    In every iteration ``source`` must be logged before the governing ``clock``
+    sample, and the total ``clock()`` call count equals the exact-count pin
+    (``N`` ticks => ``N`` governing samples, no extra sample).
+    """
+    events = []
+    instants = [1500, 2500, 3500]
+    base_clock = _scripted_clock(instants)
+    base_source = _scripted_source(
+        [
+            _quote(timestamp=1000),
+            _quote(timestamp=2000),
+            _quote(timestamp=3000),
+        ]
+    )
+    clock_calls = []
+
+    def clock():
+        clock_calls.append(1)
+        events.append("clock")
+        return base_clock()
+
+    def source():
+        events.append("source")
+        return base_source()
+
+    result = run_quote_loop(
+        _empty_window(),
+        source,
+        clock=clock,
+        policy=_RACE_POLICY,
+        max_gap_ms=1000,
+        tick_budget=3,
+    )
+
+    assert result.iterations == 3
+    assert events == [
+        "source",
+        "clock",
+        "source",
+        "clock",
+        "source",
+        "clock",
+    ]
+    assert len(clock_calls) == 3
+    assert [entry.governed.evaluated_at_ms for entry in result.window.entries] == (
+        instants
+    )
