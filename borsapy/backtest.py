@@ -283,6 +283,9 @@ class BacktestResult:
         except Exception:
             rf_annual = 0.30  # Fallback 30%
 
+        if rf_annual is None:
+            rf_annual = 0.30  # Source returned no data
+
         rf_daily = rf_annual / 252
         excess_returns = returns - rf_daily
         return float(np.sqrt(252) * excess_returns.mean() / excess_returns.std())
@@ -306,6 +309,9 @@ class BacktestResult:
             rf_annual = risk_free_rate()
         except Exception:
             rf_annual = 0.30
+
+        if rf_annual is None:
+            rf_annual = 0.30  # Source returned no data
 
         rf_daily = rf_annual / 252
         excess_returns = returns - rf_daily

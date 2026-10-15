@@ -258,6 +258,28 @@ class TestBacktestResult:
         assert "Total Trades" in summary
         assert "Win Rate" in summary
 
+    def test_sharpe_ratio_falls_back_when_risk_free_rate_none(
+        self, sample_result, monkeypatch
+    ):
+        """Sharpe ratio falls back to 30% when risk_free_rate returns None."""
+        monkeypatch.setattr("borsapy.bond.risk_free_rate", lambda: None)
+
+        value = sample_result.sharpe_ratio
+
+        assert isinstance(value, float)
+        assert np.isfinite(value)
+
+    def test_sortino_ratio_falls_back_when_risk_free_rate_none(
+        self, sample_result, monkeypatch
+    ):
+        """Sortino ratio falls back to 30% when risk_free_rate returns None."""
+        monkeypatch.setattr("borsapy.bond.risk_free_rate", lambda: None)
+
+        value = sample_result.sortino_ratio
+
+        assert isinstance(value, float)
+        assert np.isfinite(value)
+
 
 class TestBacktestResultEdgeCases:
     """Test edge cases for BacktestResult."""

@@ -505,9 +505,10 @@ class Fund(TechnicalMixin, TwitterMixin):
         if risk_free_rate is None:
             try:
                 from borsapy.bond import risk_free_rate as get_rf_rate
-                rf = get_rf_rate() * 100  # Returns decimal like 0.28, convert to %
+                rf_decimal = get_rf_rate()
             except Exception:
-                rf = 30.0  # Fallback: approximate Turkish 10Y yield
+                rf_decimal = None
+            rf = rf_decimal * 100 if rf_decimal is not None else 30.0
         else:
             rf = risk_free_rate * 100  # Convert decimal to percentage
 

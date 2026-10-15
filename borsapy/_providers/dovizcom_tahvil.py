@@ -42,10 +42,14 @@ class DovizcomTahvilProvider(BaseProvider):
 
     def get_bond_yields(self) -> list[dict[str, Any]]:
         """
-        Get current Turkish government bond yields.
+        Get bond yields for the countries listed on the page.
+
+        Each returned row carries a ``country`` field holding the first
+        whitespace-separated token of the bond name (e.g. ``"TR"`` for
+        ``"TR 2 Yıllık Tahvil Faizi"``, ``"ABD"`` for the US rows).
 
         Returns:
-            List of bond data with name, maturity, yield, change, etc.
+            List of bond data with name, country, maturity, yield, change, etc.
 
         Raises:
             APIError: If API request fails.
@@ -60,8 +64,8 @@ class DovizcomTahvilProvider(BaseProvider):
             response = self._get(self.BASE_URL)
             soup = BeautifulSoup(response.content, "html.parser")
 
-            # Find the commodities table
-            table = soup.find("table", {"id": "commodities"})
+            # Find the bonds table
+            table = soup.find("table", {"id": "bonds"})
             if not table:
                 raise DataNotAvailableError("Bond table not found on page")
 
@@ -77,13 +81,15 @@ class DovizcomTahvilProvider(BaseProvider):
                     if len(cells) < 3:
                         continue
 
-                    # Parse bond name and URL
-                    name_link = cells[0].find("a", class_="name")
-                    if not name_link:
+                    # Parse bond name and URL. The anchor no longer carries a
+                    # class; fall back to the row's data-name attribute.
+                    name_anchor = cells[0].find("a")
+                    name = name_anchor.text.strip() if name_anchor else ""
+                    if not name:
+                        name = (row.get("data-name") or "").strip()
+                    if not name:
                         continue
-
-                    name = name_link.text.strip()
-                    url = name_link.get("href", "")
+                    url = name_anchor.get("href", "") if name_anchor else ""
 
                     # Parse current yield
                     yield_text = cells[1].text.strip()
@@ -96,12 +102,23 @@ class DovizcomTahvilProvider(BaseProvider):
                     # Get maturity
                     maturity = self._get_maturity(name)
 
+                    # Country is the first whitespace-separated token of the name
+                    name_tokens = name.split()
+                    country = name_tokens[0] if name_tokens else None
+
                     bond_data = {
                         "name": name,
+                        "country": country,
                         "maturity": maturity,
                         "yield": yield_rate,
-                        "yield_decimal": yield_rate / 100 if yield_rate else None,
-                        "change": yield_rate * (change_pct / 100) if yield_rate and change_pct else None,
+                        "yield_decimal": (
+                            yield_rate / 100 if yield_rate is not None else None
+                        ),
+                        "change": (
+                            yield_rate * (change_pct / 100)
+                            if yield_rate is not None and change_pct is not None
+                            else None
+                        ),
                         "change_pct": change_pct,
                         "url": url,
                     }
@@ -139,7 +156,7 @@ class DovizcomTahvilProvider(BaseProvider):
         bonds = self.get_bond_yields()
 
         for bond in bonds:
-            if bond["maturity"] == maturity:
+            if bond["maturity"] == maturity and bond.get("country") == "TR":
                 return bond
 
         raise DataNotAvailableError(f"Bond with maturity {maturity} not found")

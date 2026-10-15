@@ -122,7 +122,7 @@ def bonds() -> pd.DataFrame:
         2 10 Yıllık Tahvil      10Y   28.03    0.42        1.52
     """
     provider = get_tahvil_provider()
-    data = provider.get_bond_yields()
+    data = [b for b in provider.get_bond_yields() if b.get("country") == "TR"]
 
     if not data:
         return pd.DataFrame(columns=["name", "maturity", "yield", "change", "change_pct"])
