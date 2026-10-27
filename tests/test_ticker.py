@@ -120,3 +120,107 @@ class TestComputeAdjClose:
         result = _compute_adj_close(close, divs)
         result.iloc[0] = 999.0
         assert close.iloc[0] == 100.0
+
+
+def _ohlcv_frame(dates: list[str], close: float) -> pd.DataFrame:
+    idx = pd.DatetimeIndex(
+        [pd.Timestamp(f"{d} 09:00", tz="Europe/Istanbul") for d in dates]
+    )
+    return pd.DataFrame(
+        {
+            "Open": [close] * len(dates),
+            "High": [close] * len(dates),
+            "Low": [close] * len(dates),
+            "Close": [close] * len(dates),
+            "Volume": [3_000_000.0] * len(dates),
+        },
+        index=idx,
+    )
+
+
+def _splits_frame(rows: list[tuple[str, float]]) -> pd.DataFrame:
+    idx = pd.DatetimeIndex([pd.Timestamp(d) for d, _ in rows])
+    return pd.DataFrame(
+        {
+            "Capital": [0.0] * len(rows),
+            "RightsIssue": [0.0] * len(rows),
+            "BonusFromCapital": [pct for _, pct in rows],
+            "BonusFromDividend": [0.0] * len(rows),
+        },
+        index=idx,
+    )
+
+
+class TestUnadjustPrices:
+    """history(adjust=False) must reverse only adjustments TradingView applied.
+
+    TradingView applies a capital-increase adjustment once the market
+    re-prices the event; an event dated after the last bar has not been
+    applied, so reversing it would fabricate scaled prices (live incident
+    2026-10-27: MERCN 2026-11-02 bedelsiz inflated the whole 1mo window by 3).
+    """
+
+    @staticmethod
+    def _ticker(monkeypatch, frame: pd.DataFrame, splits) -> "object":
+        from borsapy.ticker import Ticker
+
+        class FakeProvider:
+            def get_history(self, **kwargs):
+                return frame
+
+        ticker = Ticker.__new__(Ticker)  # avoid provider/network on init
+        ticker._symbol = "MERCN"
+        ticker._tradingview = FakeProvider()
+        if isinstance(splits, Exception):
+            monkeypatch.setattr(
+                Ticker, "splits", property(lambda self: (_ for _ in ()).throw(splits))
+            )
+        else:
+            monkeypatch.setattr(Ticker, "splits", property(lambda self: splits))
+        return ticker
+
+    def test_future_bonus_split_leaves_prices_unchanged(self, monkeypatch):
+        dates = [f"2026-10-{d:02d}" for d in (20, 21, 22, 23, 26, 27)]
+        frame = _ohlcv_frame(dates, 8.81)
+        splits = _splits_frame([("2026-11-02", 200.0)])
+        ticker = self._ticker(monkeypatch, frame, splits)
+        result = ticker.history(period="1mo", interval="1d", adjust=False)
+        pd.testing.assert_frame_equal(result, frame)
+
+    def test_past_bonus_split_scales_bars_before_event(self, monkeypatch):
+        dates = [f"2023-09-{d:02d}" for d in (26, 27, 28)] + [
+            f"2023-10-{d:02d}" for d in (2, 3)
+        ]
+        frame = _ohlcv_frame(dates, 15.0)
+        splits = _splits_frame([("2023-09-29", 200.0)])
+        ticker = self._ticker(monkeypatch, frame, splits)
+        result = ticker.history(period="1mo", interval="1d", adjust=False)
+        assert result["Close"].iloc[0] == pytest.approx(45.0)  # before event: ×3
+        assert result["Close"].iloc[2] == pytest.approx(45.0)
+        assert result["Close"].iloc[3] == pytest.approx(15.0)  # event day onward
+        assert result["Volume"].iloc[0] == pytest.approx(1_000_000.0)  # ÷3
+
+    def test_split_after_last_bar_on_same_day_still_applies(self, monkeypatch):
+        # Event midnight equals the last bar's day: bars strictly before that
+        # day were adjusted by TradingView and must still be reversed.
+        dates = ["2023-09-27", "2023-09-28", "2023-09-29"]
+        frame = _ohlcv_frame(dates, 15.0)
+        splits = _splits_frame([("2023-09-29", 200.0)])
+        ticker = self._ticker(monkeypatch, frame, splits)
+        result = ticker.history(period="1mo", interval="1d", adjust=False)
+        assert result["Close"].iloc[0] == pytest.approx(45.0)
+        assert result["Close"].iloc[1] == pytest.approx(45.0)
+        assert result["Close"].iloc[2] == pytest.approx(15.0)
+
+    def test_empty_splits_leaves_prices_unchanged(self, monkeypatch):
+        frame = _ohlcv_frame(["2026-10-26", "2026-10-27"], 8.81)
+        splits = _splits_frame([])
+        ticker = self._ticker(monkeypatch, frame, splits)
+        result = ticker.history(period="1mo", interval="1d", adjust=False)
+        pd.testing.assert_frame_equal(result, frame)
+
+    def test_splits_lookup_error_leaves_prices_unchanged(self, monkeypatch):
+        frame = _ohlcv_frame(["2026-10-26", "2026-10-27"], 8.81)
+        ticker = self._ticker(monkeypatch, frame, RuntimeError("isyatirim down"))
+        result = ticker.history(period="1mo", interval="1d", adjust=False)
+        pd.testing.assert_frame_equal(result, frame)

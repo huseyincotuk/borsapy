@@ -858,17 +858,25 @@ class Ticker(TechnicalMixin, TwitterMixin):
         if splits.empty:
             return df
 
-        # Collect split events with bonus ratios
+        # Collect split events with bonus ratios.
+        # Events dated AFTER the last returned bar are skipped: TradingView
+        # has not applied them yet (the market has not re-priced them), so
+        # there is nothing to reverse. Reversing a registered-but-not-yet-
+        # effective capital increase fabricates a factor for every bar in the
+        # window (live incident 2026-10-27: MERCN bedelsiz dated 2026-11-02
+        # multiplied the whole window by 3 -> 8.81 TL close stored as 26.43).
         split_events = []
+        last_bar = df.index.max()
         for split_date, row in splits.iterrows():
             bonus_pct = row.get("BonusFromCapital", 0) + row.get(
                 "BonusFromDividend", 0
             )
             if bonus_pct > 0:
+                event_ts = pd.Timestamp(split_date, tz="Europe/Istanbul")
+                if event_ts > last_bar:
+                    continue
                 ratio = 1 + (bonus_pct / 100)
-                split_events.append(
-                    (pd.Timestamp(split_date, tz="Europe/Istanbul"), ratio)
-                )
+                split_events.append((event_ts, ratio))
 
         if not split_events:
             return df
