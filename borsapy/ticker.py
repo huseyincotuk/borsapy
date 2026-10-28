@@ -9,6 +9,7 @@ import pandas as pd
 
 from borsapy._providers.kap import get_kap_provider
 from borsapy._providers.tradingview import get_tradingview_provider
+from borsapy.exceptions import APIError
 from borsapy.technical import TechnicalMixin
 from borsapy.twitter import TwitterMixin, _build_stock_query
 
@@ -1128,39 +1129,116 @@ class Ticker(TechnicalMixin, TwitterMixin):
         """Quarterly cash flow (use get_cashflow(quarterly=True) for more options)."""
         return self.get_cashflow(quarterly=True)
 
-    def _calculate_ttm(self, quarterly_df: pd.DataFrame) -> pd.DataFrame:
+    #: Periods fetched for TTM computation.  The bridge needs at least
+    #: {P, prior-year FY, prior-year same P}; 8 comfortably covers every
+    #: quarter within a fiscal year and triggers the provider's postback path.
+    _TTM_FETCH_PERIODS = 8
+
+    @staticmethod
+    def _ttm_bridge(
+        quarterly_cum_df: pd.DataFrame,
+        period: str,
+        prior_fy: str,
+        prior_period: str,
+    ) -> pd.DataFrame:
         """
-        Calculate trailing twelve months (TTM) by summing last 4 quarters.
+        Canonical cumulative TTM bridge (pure function).
+
+        Turkish flow statements are year-to-date cumulative, so TTM is::
+
+            TTM(P) = cum(P) + cum(FY_{y-1}) - cum(P_{y-1})
+
+        e.g. ``TTM(2026Q2) = cum(2026Q2) + cum(2025Q4) - cum(2025Q2)``.
 
         Args:
-            quarterly_df: DataFrame with quarterly data (columns in YYYYQN format).
+            quarterly_cum_df: Cumulative quarterly flow DataFrame whose columns
+                are ``YYYYQN`` labels.
+            period: Target period label ``P``.
+            prior_fy: Prior fiscal-year full-year label (``YYYYQ4``).
+            prior_period: Same period one year earlier.
 
         Returns:
-            DataFrame with single TTM column containing summed values.
+            DataFrame indexed like the input with a single ``TTM`` column.
+
+        Raises:
+            APIError: If any prerequisite period column is missing; the message
+                names the missing period label(s).  No estimation, no silent
+                reduction.
         """
-        if quarterly_df.empty or len(quarterly_df.columns) < 4:
-            return pd.DataFrame(columns=["TTM"])
+        if quarterly_cum_df is None or quarterly_cum_df.empty:
+            raise APIError("TTM hesaplaması için finansal tablo verisi yok")
 
-        # First 4 columns = last 4 quarters (most recent first)
-        last_4_quarters = quarterly_df.iloc[:, :4]
+        missing = [
+            label
+            for label in (period, prior_fy, prior_period)
+            if label not in quarterly_cum_df.columns
+        ]
+        if missing:
+            raise APIError(
+                "TTM hesaplaması için eksik dönem(ler): " + ", ".join(missing)
+            )
 
-        # Convert to numeric, coercing errors to NaN
-        numeric_df = last_4_quarters.apply(pd.to_numeric, errors="coerce")
+        def _numeric(label: str):
+            return pd.to_numeric(
+                quarterly_cum_df[label], errors="coerce"
+            ).to_numpy(dtype=float)
 
-        return numeric_df.sum(axis=1).to_frame(name="TTM")
+        values = _numeric(period) + _numeric(prior_fy) - _numeric(prior_period)
+        return pd.DataFrame({"TTM": values}, index=quarterly_cum_df.index)
+
+    def _calculate_ttm(self, quarterly_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate TTM for the most recent column using the cumulative bridge.
+
+        Args:
+            quarterly_df: Cumulative quarterly flow DataFrame (columns newest
+                first, ``YYYYQN``).
+
+        Returns:
+            DataFrame with a single ``TTM`` column.
+
+        Raises:
+            APIError: If the prerequisite periods (prior-year FY and prior-year
+                same period) are not in the fetched data.
+        """
+        if quarterly_df is None or quarterly_df.empty:
+            raise APIError("TTM hesaplaması için finansal tablo verisi yok")
+
+        period = str(quarterly_df.columns[0])
+        try:
+            year_str, quarter_str = period.split("Q")
+            year = int(year_str)
+            quarter = int(quarter_str)
+        except (ValueError, AttributeError) as e:
+            raise APIError(f"TTM için geçersiz dönem etiketi: {period!r}") from e
+
+        return self._ttm_bridge(
+            quarterly_df,
+            period=period,
+            prior_fy=f"{year - 1}Q4",
+            prior_period=f"{year - 1}Q{quarter}",
+        )
 
     def get_ttm_income_stmt(self, financial_group: str | None = None) -> pd.DataFrame:
         """
         Get trailing twelve months (TTM) income statement.
 
-        Calculates TTM by summing the last 4 quarters of income statement data.
+        Uses the canonical cumulative bridge
+        ``TTM(P) = cum(P) + cum(FY_{y-1}) - cum(P_{y-1})`` (Turkish quarterly
+        flow statements are year-to-date cumulative).  Balance sheets are stock
+        statements and are not eligible for TTM.
 
         Args:
             financial_group: Financial group code. Use "UFRS" for banks,
-                           "XI_29" for industrial companies. If None, defaults to XI_29.
+                           "XI_29" for industrial companies. If None, uses the
+                           group selected on the company page.
 
         Returns:
             DataFrame with TTM column containing summed values for each line item.
+
+        Raises:
+            APIError: If the required periods (current, prior-year full year,
+                prior-year same period) are not available.
 
         Examples:
             >>> stock = bp.Ticker("THYAO")
@@ -1169,21 +1247,31 @@ class Ticker(TechnicalMixin, TwitterMixin):
             >>> bank = bp.Ticker("AKBNK")
             >>> bank.get_ttm_income_stmt(financial_group="UFRS")
         """
-        quarterly = self.get_income_stmt(quarterly=True, financial_group=financial_group)
+        quarterly = self.get_income_stmt(
+            quarterly=True,
+            financial_group=financial_group,
+            last_n=self._TTM_FETCH_PERIODS,
+        )
         return self._calculate_ttm(quarterly)
 
     def get_ttm_cashflow(self, financial_group: str | None = None) -> pd.DataFrame:
         """
         Get trailing twelve months (TTM) cash flow statement.
 
-        Calculates TTM by summing the last 4 quarters of cash flow data.
+        Uses the canonical cumulative bridge
+        ``TTM(P) = cum(P) + cum(FY_{y-1}) - cum(P_{y-1})``.
 
         Args:
             financial_group: Financial group code. Use "UFRS" for banks,
-                           "XI_29" for industrial companies. If None, defaults to XI_29.
+                           "XI_29" for industrial companies. If None, uses the
+                           group selected on the company page.
 
         Returns:
             DataFrame with TTM column containing summed values for each line item.
+
+        Raises:
+            APIError: If the required periods (current, prior-year full year,
+                prior-year same period) are not available.
 
         Examples:
             >>> stock = bp.Ticker("THYAO")
@@ -1192,7 +1280,11 @@ class Ticker(TechnicalMixin, TwitterMixin):
             >>> bank = bp.Ticker("AKBNK")
             >>> bank.get_ttm_cashflow(financial_group="UFRS")
         """
-        quarterly = self.get_cashflow(quarterly=True, financial_group=financial_group)
+        quarterly = self.get_cashflow(
+            quarterly=True,
+            financial_group=financial_group,
+            last_n=self._TTM_FETCH_PERIODS,
+        )
         return self._calculate_ttm(quarterly)
 
     # Legacy property aliases

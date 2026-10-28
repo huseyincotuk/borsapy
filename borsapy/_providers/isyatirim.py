@@ -1,5 +1,7 @@
 """İş Yatırım provider for real-time prices and financial statements."""
 
+import html as html_module
+import re
 import warnings
 from datetime import datetime
 from typing import Any
@@ -17,23 +19,106 @@ class IsYatirimProvider(BaseProvider):
 
     APIs:
         - OneEndeks: Real-time OHLCV data
-        - MaliTablo: Financial statements (balance sheet, income, cash flow)
-        - GetSermayeArttirimlari: Dividends and capital increases
+        - CompanyInfoAjax: Dividends and capital increases
+        - sirket-karti.aspx: Embedded financial statement table (HTML)
+
+    Financial statements (source notes)
+    ------------------------------------
+    The legacy ``Data.aspx/MaliTablo`` JSON endpoint that this provider used to
+    call is dead: as of the 28.10.2026 site renewal it answers HTTP 200 with
+    ``{"value": []}`` for every symbol/group/period combination.  Financial
+    statements now arrive **server-side embedded in HTML** on
+    ``sirket-karti.aspx?hisse=<SYMBOL>`` (the same page already scraped by
+    :meth:`get_major_holders` and :meth:`get_company_metrics`).  The provider
+    extracts ``<table class="excelexport" data-csvname="malitablo">`` from that
+    page instead of calling the JSON endpoint.  There is no MaliTablo XHR
+    traffic any more.
+
+    Section structure
+    -----------------
+    The embedded table is split by ``<tr class='arabaslik'>`` header rows into
+    four known sections, in source order:
+
+    * ``Bilanço`` — balance sheet (stock table, not used for TTM)
+    * ``Gelir Tablosu`` — income statement (flow table)
+    * ``Dipnot`` — income-statement supplementary notes (Amortisman Giderleri,
+      Kıdem Tazminatı, Finansman Giderleri, Yurtiçi/Yurtdışı Satışlar, net FX
+      position).  They are EBITDA inputs, so ``income_stmt`` returns the union
+      of ``Gelir Tablosu`` and ``Dipnot`` in source order.
+    * ``Nakit Akım Tablosu`` — cash flow statement (flow table); it ends at the
+      table ``</table>`` close.
+
+    Unknown ``arabaslik`` sections are skipped for forward compatibility.
+    Row names are carried verbatim (only surrounding whitespace is stripped);
+    duplicate row names are preserved in source order — no deduplication, no
+    renaming.  The UFRS/BDDK family (e.g. AKBNK) uses Roman-numeral BDDK chart
+    of accounts row names, which are also carried verbatim.  Bank pages carry
+    no ``Nakit Akım Tablosu`` section, so ``get_cashflow`` honestly returns an
+    empty DataFrame for them (bank cash flow is expected from MKK in FA-01b).
+
+    Cumulative reporting (critical)
+    -------------------------------
+    Turkish quarterly flow statements are **year-to-date cumulative**, not
+    standalone quarters: THYAO 2026/6 revenue is 9M-to-date while 2026/3 is
+    3M-to-date and 2025/12 is the full year.  Never add four quarterly columns
+    as if they were standalone.  :meth:`derive_standalone_quarters` derives
+    additive quarters (``Qn = cum(Qn) - cum(Qn-1)`` within a fiscal year, Q1 =
+    cum(Q1), no clamping — negative values are legitimate) and
+    :meth:`borsapy.ticker.Ticker.get_ttm_income_stmt` uses the canonical bridge
+    ``TTM(P) = cum(P) + cum(FY_{y-1}) - cum(P_{y-1})``.
+
+    Restatement policy (İş Yatırım TMS-29)
+    --------------------------------------
+    The table header carries İş Yatırım's official note: "Sanayi
+    şirketlerinde en son açıklanmış yıl sonu rakamları enflasyon düzeltmesiyle
+    son finansal döneme çekilmektedir."  Some columns are therefore
+    inflation-restated and can be fractional (e.g. ``513.912.099.203``) rather
+    than as-reported integers.  borsapy transfers these values source-faithfully
+    and does not restate, scale or substitute them.  The canonical
+    as-reported values come from MKK (FA-01b); İş Yatırım restated values must be
+    used in a restated context only.  Restated-column flagging is the FA-02
+    policy layer's job.
+
+    Data caveats
+    ------------
+    * The ready-made "Hisse Başına Kazanç" (EPS) row on the page is unreliable
+      (THYAO reports 0 for some periods).  borsapy only carries the rows and
+      makes no interpretation: compute EPS yourself from net income and share
+      count if you need it.
+    * Kardemir / İş Bankası pay-group share-class variants are not specially
+      handled.  Their rows are passed through exactly as published.
+    * A page without a malitablo table yields an empty DataFrame; network or
+      HTTP failures raise :class:`APIError` and are never silently swallowed.
+    * AGENTS.md discipline applies: preserve the source, never silently
+      substitute missing values, and pay attention to units, periods and
+      restatement context.
     """
 
     BASE_URL = "https://www.isyatirim.com.tr/_Layouts/15/IsYatirim.Website/Common"
     STOCK_INFO_URL = "https://www.isyatirim.com.tr/_layouts/15/IsYatirim.Website/StockInfo/CompanyInfoAjax.aspx"
+    STATEMENT_PAGE_URL = (
+        "https://www.isyatirim.com.tr/tr-tr/analiz/hisse/Sayfalar/sirket-karti.aspx"
+    )
 
     # Financial statement groups
     FINANCIAL_GROUP_INDUSTRIAL = "XI_29"  # Sanayi şirketleri
     FINANCIAL_GROUP_BANK = "UFRS"  # Bankalar
 
-    # itemCode prefixes for filtering financial statement rows
-    # The MaliTablo API returns all tables combined; we filter by itemCode prefix.
+    # itemCode prefixes from the dead MaliTablo JSON endpoint.  Kept only for
+    # the legacy ``_parse_financial_response`` helper (and its regression
+    # tests); the embedded HTML table has no itemCode, so the new path never
+    # uses this filter.
     ITEM_CODE_PREFIXES = {
         "balance_sheet": ("1", "2"),  # 1xxx=Aktif, 2xxx=Pasif
         "income_stmt": ("3",),       # 3xxx=Gelir Tablosu
         "cashflow": ("4",),          # 4xxx=Nakit Akış
+    }
+
+    # Normalised arabaslik section title -> statement_type membership
+    _STATEMENT_SECTIONS = {
+        "balance_sheet": ("bilanço",),
+        "income_stmt": ("gelir tablosu", "dipnot"),
+        "cashflow": ("nakit akım tablosu",),
     }
 
     # Known market indices
@@ -586,50 +671,66 @@ class IsYatirimProvider(BaseProvider):
         # Resolve count
         count = self._resolve_last_n(last_n, quarterly)
 
-        cache_key = f"isyatirim:financial:{symbol}:{statement_type}:{quarterly}:{count}"
+        # financial_group=None means "use the group the page has selected"
+        # (THYAO -> XI_29, AKBNK -> UFRS_K), which preserves backward
+        # compatibility for industrial companies.
+        group_key = financial_group if financial_group is not None else "page"
+
+        cache_key = (
+            f"isyatirim:financial:{symbol}:{statement_type}:{quarterly}:"
+            f"{count}:{group_key}"
+        )
         cached = self._cache_get(cache_key)
         if cached is not None:
             return cached
 
-        # Determine financial group
-        if financial_group is None:
-            financial_group = self.FINANCIAL_GROUP_INDUSTRIAL
-
-        # Generate all periods needed
+        # Generate all periods needed.
+        #
+        # NOTE: the page's own period dropdown is authoritative.  If a
+        # requested period is not offered by the dropdown (young company, 2008
+        # boundary) _fetch_financial_table simply returns fewer/empty columns
+        # instead of inventing calendar periods.
         current_year = datetime.now().year
         periods = self._get_periods(current_year, quarterly, count=count)
 
-        # Split into batches of 5 (API limit)
+        # The page shows at most 4 period columns; fetch in batches of 4.
         batches = [
             periods[i : i + self._MAX_PERIODS_PER_CALL]
             for i in range(0, len(periods), self._MAX_PERIODS_PER_CALL)
         ]
 
-        # Single API call per batch (API returns all tables combined;
-        # we filter by itemCode prefix in _parse_financial_response)
+        # Network/HTTP failures propagate as APIError (fail-loud).  A batch
+        # that parses to an empty DataFrame is a legitimate "no data in this
+        # range" answer and is skipped.
         all_dfs = []
         for batch_periods in batches:
-            try:
-                df = self._fetch_financial_table(
-                    symbol=symbol,
-                    financial_group=financial_group,
-                    periods=batch_periods,
-                    quarterly=quarterly,
-                    statement_type=statement_type,
-                )
-                if not df.empty:
-                    all_dfs.append(df)
-            except Exception:
-                continue
+            df = self._fetch_financial_table(
+                symbol=symbol,
+                financial_group=financial_group,
+                periods=batch_periods,
+                quarterly=quarterly,
+                statement_type=statement_type,
+            )
+            if not df.empty:
+                all_dfs.append(df)
 
         if not all_dfs:
-            raise DataNotAvailableError(f"No financial data available for {symbol}")
+            # No malitablo table / no matching section: empty DataFrame.
+            return pd.DataFrame()
 
-        # Merge batches horizontally (same rows, different period columns)
+        # Merge batches horizontally (same rows, different period columns).
+        # Row names may legitimately repeat (e.g. "Ticari Alacaklar" appears
+        # under current and non-current assets), so an index-based join would
+        # multiply rows.  When the row index is identical, concatenate by
+        # position; otherwise fall back to a label join (legacy behaviour).
         result = all_dfs[0]
         for extra_df in all_dfs[1:]:
             new_cols = [c for c in extra_df.columns if c not in result.columns]
-            if new_cols:
+            if not new_cols:
+                continue
+            if result.index.equals(extra_df.index):
+                result = pd.concat([result, extra_df[new_cols]], axis=1)
+            else:
                 result = result.join(extra_df[new_cols], how="outer")
 
         # Sort columns: most recent first
@@ -651,6 +752,71 @@ class IsYatirimProvider(BaseProvider):
         if not isinstance(last_n, int) or last_n < 1:
             raise ValueError(f"last_n must be a positive integer or 'all', got {last_n!r}")
         return last_n
+
+    @staticmethod
+    def derive_standalone_quarters(quarterly_cum_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Derive standalone (additive) quarters from cumulative flow data.
+
+        Turkish quarterly flow statements are year-to-date cumulative.  This
+        helper lappings them into single-quarter values:
+
+        * ``Q1 = cum(Q1)``
+        * ``Qn = cum(Qn) - cum(Qn-1)`` within the same fiscal year
+        * the series resets at the fiscal-year boundary (a new year's Q1 is
+          that year's cumulative Q1)
+
+        If either operand is NaN the result is NaN.  Negative standalone values
+        are legitimate (provisions, seasonality) and are preserved — there is
+        no clamping, abs or zeroing.  Column order and duplicate row labels of
+        the input are preserved.
+
+        Placement: this is an ``IsYatirimProvider`` static method because the
+        cumulative convention is a provider/source property.  Independent
+        verification against MKK CURR3 data is deferred to FA-01b.
+
+        Args:
+            quarterly_cum_df: DataFrame whose columns are ``YYYYQN`` period
+                labels (any order) and whose index is the item names.
+
+        Returns:
+            DataFrame with the same index and columns, holding standalone
+            quarter values.
+        """
+        if quarterly_cum_df is None or quarterly_cum_df.empty:
+            return pd.DataFrame()
+
+        parsed: dict[str, tuple[int, int] | None] = {}
+        for column in quarterly_cum_df.columns:
+            try:
+                year_str, quarter_str = str(column).split("Q")
+                parsed[column] = (int(year_str), int(quarter_str))
+            except (ValueError, AttributeError):
+                parsed[column] = None
+
+        result = pd.DataFrame(index=quarterly_cum_df.index)
+        for column in quarterly_cum_df.columns:
+            period = parsed[column]
+            if period is None:
+                result[column] = float("nan")
+                continue
+            year, quarter = period
+            current = pd.to_numeric(
+                quarterly_cum_df[column], errors="coerce"
+            ).to_numpy(dtype=float)
+            if quarter == 1:
+                result[column] = current
+                continue
+            previous_column = f"{year}Q{quarter - 1}"
+            if previous_column not in quarterly_cum_df.columns:
+                result[column] = float("nan")
+                continue
+            previous = pd.to_numeric(
+                quarterly_cum_df[previous_column], errors="coerce"
+            ).to_numpy(dtype=float)
+            result[column] = current - previous
+
+        return result[list(quarterly_cum_df.columns)]
 
     @staticmethod
     def _period_sort_key(col_name: str) -> tuple[int, int]:
@@ -733,34 +899,380 @@ class IsYatirimProvider(BaseProvider):
     def _fetch_financial_table(
         self,
         symbol: str,
-        financial_group: str,
+        financial_group: str | None,
         periods: list[tuple[int, int]],
         quarterly: bool = False,
         statement_type: str | None = None,
     ) -> pd.DataFrame:
-        """Fetch financial data for up to 5 periods and filter by statement type."""
-        url = f"{self.BASE_URL}/Data.aspx/MaliTablo"
+        """
+        Fetch up to 4 periods of the embedded malitablo table.
 
-        # Build params with multiple year/period pairs
-        params: dict[str, Any] = {
-            "companyCode": symbol,
-            "exchange": "TRY",
-            "financialGroup": financial_group,
-        }
+        The embedded table carries no itemCode; section headers are used to
+        select rows instead (see :meth:`_parse_embedded_statement`).
+        """
+        html_text = self._get_statement_html(
+            symbol=symbol,
+            financial_group=financial_group,
+            periods=periods,
+        )
+        if not html_text:
+            return pd.DataFrame()
 
-        for i, (year, period) in enumerate(periods[:self._MAX_PERIODS_PER_CALL], 1):
-            params[f"year{i}"] = year
-            params[f"period{i}"] = period
+        return self._parse_embedded_statement(
+            html_text, quarterly=quarterly, statement_type=statement_type
+        )
+
+    # ------------------------------------------------------------------
+    # Embedded malitablo HTML helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_malitablo_table(html_text: str) -> str | None:
+        """Return the ``<table ... data-csvname="malitablo">...</table>`` slice."""
+        for tag_match in re.finditer(r"<table\b[^>]*>", html_text, re.IGNORECASE):
+            tag = tag_match.group(0)
+            if "malitablo" not in tag.lower() or "excelexport" not in tag.lower():
+                continue
+            end = html_text.lower().find("</table>", tag_match.end())
+            if end == -1:
+                return None
+            return html_text[tag_match.start() : end + len("</table>")]
+        return None
+
+    @staticmethod
+    def _strip_cell(cell_html: str) -> str:
+        """Strip nested tags/entities/whitespace from a table cell."""
+        text = re.sub(r"<[^>]+>", "", cell_html)
+        text = html_module.unescape(text)
+        return text.strip()
+
+    @staticmethod
+    def _parse_number(text: str) -> Any:
+        """
+        Parse a source value cell.
+
+        Dotted thousand separators are removed (``"512.191.000.000"`` ->
+        ``512191000000.0``), ``"0"`` -> ``0.0``, empty -> ``NaN``, negatives
+        and TMS-29 restated decimals are preserved.  A cell that still cannot
+        be parsed is returned verbatim (source-faithful transfer) rather than
+        being coerced to NaN.
+        """
+        if text is None:
+            return float("nan")
+        raw = str(text).strip()
+        if not raw:
+            return float("nan")
+        compact = raw.replace("\u00a0", " ").strip()
+        try:
+            return float(compact.replace(".", "").replace(",", "."))
+        except ValueError:
+            pass
+        try:
+            return float(compact)
+        except ValueError:
+            return raw
+
+    @staticmethod
+    def _select_elements(html_text: str) -> list[dict[str, Any]]:
+        """Parse ``<select>`` elements into id/name/options/selected dicts."""
+        selects: list[dict[str, Any]] = []
+        for tag, body in re.findall(
+            r"<select\b([^>]*)>(.*?)</select>", html_text, re.IGNORECASE | re.DOTALL
+        ):
+            id_match = re.search(r'id=["\']([^"\']+)["\']', tag)
+            name_match = re.search(r'name=["\']([^"\']+)["\']', tag)
+            options = re.findall(
+                r"<option\b([^>]*)>(.*?)</option>", body, re.IGNORECASE | re.DOTALL
+            )
+            values: list[str] = []
+            selected: str | None = None
+            for opt_tag, opt_body in options:
+                value_match = re.search(r'value=["\']([^"\']*)["\']', opt_tag)
+                value = (
+                    html_module.unescape(value_match.group(1))
+                    if value_match
+                    else IsYatirimProvider._strip_cell(opt_body)
+                )
+                values.append(value)
+                if selected is None and re.search(
+                    r"\bselected\b", opt_tag, re.IGNORECASE
+                ):
+                    selected = value
+            if selected is None and values:
+                selected = values[0]
+            selects.append(
+                {
+                    "id": id_match.group(1) if id_match else "",
+                    "name": name_match.group(1) if name_match else "",
+                    "values": values,
+                    "selected": selected,
+                }
+            )
+        return selects
+
+    @classmethod
+    def _period_selects(cls, html_text: str) -> list[dict[str, Any]]:
+        """Return ddlMaliTabloDonem1..N selects ordered by their index."""
+        found = []
+        for select in cls._select_elements(html_text):
+            match = re.fullmatch(r"ddlMaliTabloDonem(\d+)", select["id"])
+            if match:
+                found.append((int(match.group(1)), select))
+        found.sort(key=lambda item: item[0])
+        return [select for _, select in found]
+
+    @classmethod
+    def _selected_group(cls, html_text: str) -> tuple[str, str | None] | None:
+        """Return ``(field_name, selected_value)`` for ddlMaliTabloGroup."""
+        for select in cls._select_elements(html_text):
+            if select["id"] == "ddlMaliTabloGroup":
+                return select["name"], select["selected"]
+        return None
+
+    @staticmethod
+    def _raw_period_label(year: int, period: int) -> str:
+        """Map a (year, period) tuple to the page's ``YYYY/P`` label."""
+        return f"{int(year)}/{int(period)}"
+
+    @staticmethod
+    def _period_column_label(raw_label: str, quarterly: bool) -> str | None:
+        """Map a page ``YYYY/P`` label to a DataFrame column label.
+
+        Quarterly mode: ``2026/6`` -> ``2026Q2`` (``period // 3``).  Annual
+        mode emits only full-year (``/12``) columns, labelled ``2025``.
+        Non-quarter period values are not representable and return None.
+        """
+        try:
+            year_str, period_str = str(raw_label).split("/")
+            year = int(year_str)
+            period = int(period_str)
+        except (ValueError, AttributeError):
+            return None
+        if quarterly:
+            if period < 3:
+                return None
+            return f"{year}Q{period // 3}"
+        if period == 12:
+            return str(year)
+        return None
+
+    def _get_statement_html(
+        self,
+        symbol: str,
+        financial_group: str | None = None,
+        periods: list[tuple[int, int]] | None = None,
+    ) -> str:
+        """
+        GET the company card page and, when needed, postback to its selects.
+
+        Returns the page HTML.  Raises :class:`APIError` on network/HTTP
+        failures and on structurally impossible postbacks; never returns
+        silently reduced data.
+        """
+        url = f"{self.STATEMENT_PAGE_URL}?hisse={symbol}"
+        try:
+            response = self._client.get(url, timeout=15)
+            response.raise_for_status()
+            html_text = response.text
+        except Exception as e:
+            raise APIError(
+                f"Failed to fetch financial statement page for {symbol}: {e}"
+            ) from e
+
+        updates: dict[str, str] = {}
+
+        page_group = self._selected_group(html_text)
+        if page_group is not None:
+            group_name, current_group = page_group
+            if financial_group is not None and financial_group != current_group:
+                if not group_name:
+                    raise APIError(
+                        f"Cannot switch financial group for {symbol}: "
+                        "ddlMaliTabloGroup has no form field name"
+                    )
+                updates[group_name] = financial_group
+        elif financial_group is not None:
+            raise APIError(
+                f"Cannot select financial group {financial_group!r} for {symbol}: "
+                "the page has no ddlMaliTabloGroup selector"
+            )
+
+        if periods:
+            table_html = self._extract_malitablo_table(html_text) or html_text
+            selects = self._period_selects(table_html)
+            if selects:
+                available = [value for s in selects for value in s["values"]]
+                requested = [
+                    self._raw_period_label(year, period)
+                    for year, period in periods[: self._MAX_PERIODS_PER_CALL]
+                ]
+                target = [label for label in requested if label in available]
+                if not target:
+                    return ""
+                used: list[str] = []
+                for i, select in enumerate(selects):
+                    if i < len(target):
+                        value = target[i]
+                    else:
+                        value = select["selected"] or ""
+                    if value in used:
+                        replacement = next(
+                            (v for v in select["values"] if v not in used), None
+                        )
+                        if replacement is not None:
+                            value = replacement
+                    if value:
+                        used.append(value)
+                    if not select["name"]:
+                        raise APIError(
+                            f"Cannot shift statement periods for {symbol}: "
+                            f"{select['id']} has no form field name"
+                        )
+                    if value and value != select["selected"]:
+                        updates[select["name"]] = value
+
+        if updates:
+            html_text = self._postback(url, html_text, updates, symbol)
+
+        return html_text
+
+    def _postback(
+        self,
+        url: str,
+        html_text: str,
+        updates: dict[str, str],
+        symbol: str,
+    ) -> str:
+        """ASP.NET postback with the page's own form fields plus updates."""
+        fields: dict[str, str] = {}
+        for tag in re.findall(r"<input\b[^>]*>", html_text, re.IGNORECASE):
+            name_match = re.search(r'name=["\']([^"\']+)["\']', tag)
+            if not name_match:
+                continue
+            value_match = re.search(r'value=["\']([^"\']*)["\']', tag)
+            fields[name_match.group(1)] = (
+                html_module.unescape(value_match.group(1)) if value_match else ""
+            )
+        for select in self._select_elements(html_text):
+            if select["name"]:
+                fields.setdefault(select["name"], select["selected"] or "")
+
+        if not fields:
+            raise APIError(
+                f"Financial statement postback failed for {symbol}: "
+                "page carries no form fields"
+            )
+        if "__VIEWSTATE" not in fields and "__VIEWSTATEGENERATOR" not in fields:
+            raise APIError(
+                f"Financial statement postback failed for {symbol}: "
+                "ASP.NET state fields (__VIEWSTATE/__EVENTVALIDATION) missing"
+            )
+
+        event_target = next(iter(updates))
+        fields.update(updates)
+        fields["__EVENTTARGET"] = event_target
+        fields["__EVENTARGUMENT"] = ""
 
         try:
-            response = self._get(url, params=params)
-            data = response.json()
+            response = self._client.post(url, data=fields, timeout=15)
+            response.raise_for_status()
+            return response.text
         except Exception as e:
-            raise APIError(f"Failed to fetch financial data for {symbol}: {e}") from e
+            raise APIError(
+                f"Financial statement postback failed for {symbol}: {e}"
+            ) from e
 
-        return self._parse_financial_response(
-            data, periods, quarterly=quarterly, statement_type=statement_type
+    def _parse_embedded_statement(
+        self,
+        html_text: str,
+        quarterly: bool = False,
+        statement_type: str | None = None,
+    ) -> pd.DataFrame:
+        """
+        Parse the embedded malitablo table into a DataFrame.
+
+        ``html_text`` may be the full page or the already-extracted table.
+        Column labels come from the ``selected`` option of
+        ``ddlMaliTabloDonem1..4`` (newest first).  Section titles are matched
+        strip/case-tolerantly; ``arabaslik`` rows themselves are never emitted.
+        """
+        table_html = self._extract_malitablo_table(html_text)
+        if table_html is None:
+            if "arabaslik" not in html_text and "tbodyMTablo" not in html_text:
+                return pd.DataFrame()
+            table_html = html_text
+
+        period_selects = self._period_selects(table_html)
+        raw_periods = [
+            s["selected"] for s in period_selects if s["selected"] is not None
+        ]
+        if not raw_periods:
+            return pd.DataFrame()
+
+        # Column label per source position (None = column not representable in
+        # the requested mode, e.g. interim columns in annual mode).
+        column_labels = [
+            self._period_column_label(raw, quarterly) for raw in raw_periods
+        ]
+        emitted_columns = [
+            index for index, label in enumerate(column_labels) if label is not None
+        ]
+        if not emitted_columns:
+            return pd.DataFrame()
+
+        if statement_type is None:
+            selected_sections: set[str] | None = None
+        else:
+            sections = self._STATEMENT_SECTIONS.get(statement_type)
+            selected_sections = set(sections) if sections is not None else None
+        known_sections = {
+            section
+            for section_list in self._STATEMENT_SECTIONS.values()
+            for section in section_list
+        }
+
+        row_names: list[str] = []
+        row_values: list[list[Any]] = []
+        current_section: str | None = None
+        body_match = re.search(
+            r"<tbody\b[^>]*>(.*?)</tbody>", table_html, re.IGNORECASE | re.DOTALL
         )
+        body = body_match.group(1) if body_match else table_html
+
+        for row_tag, row_body in re.findall(
+            r"<tr\b([^>]*)>(.*?)</tr>", body, re.IGNORECASE | re.DOTALL
+        ):
+            cells = re.findall(
+                r"<td\b[^>]*>(.*?)</td>", row_body, re.IGNORECASE | re.DOTALL
+            )
+            if not cells:
+                continue
+            if re.search(r"\barabaslik\b", row_tag, re.IGNORECASE):
+                current_section = self._strip_cell(cells[0]).casefold()
+                continue
+            if current_section is None:
+                continue
+            if current_section not in known_sections:
+                # Unknown arabaslik section: skipped for forward compatibility.
+                continue
+            if selected_sections is not None and current_section not in selected_sections:
+                continue
+
+            row_name = self._strip_cell(cells[0])
+            values = [self._parse_number(self._strip_cell(c)) for c in cells[1:]]
+            while len(values) < len(raw_periods):
+                values.append(float("nan"))
+            row_names.append(row_name)
+            row_values.append([values[i] for i in emitted_columns])
+
+        if not row_names:
+            return pd.DataFrame()
+
+        columns = [column_labels[i] for i in emitted_columns]
+        df = pd.DataFrame(row_values, columns=columns)
+        df.insert(0, "Item", row_names)
+        df.set_index("Item", inplace=True)
+        return df
 
     def _parse_financial_response(
         self,
