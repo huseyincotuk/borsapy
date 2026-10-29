@@ -1,0 +1,6413 @@
+{
+ "disclosureIndex": "1211007",
+ "senderId": "1677",
+ "senderTitle": "ULAŞLAR TURİZM ENERJİ TARIM GIDA VE İNŞAAT YATIRIMLARI A.Ş.",
+ "senderExchCodes": [
+  "ULAS"
+ ],
+ "behalfSenderId": "1677",
+ "behalfSenderTitle": "ULAŞLAR TURİZM ENERJİ TARIM GIDA VE İNŞAAT YATIRIMLARI A.Ş.",
+ "behalfSenderExchCodes": [
+  "ULAS"
+ ],
+ "disclosureReason": "NEW",
+ "disclosureType": "FR",
+ "disclosureClass": "FR",
+ "subject": {
+  "tr": "Finansal Rapor ",
+  "en": "Financial Report"
+ },
+ "consolidation": "NC",
+ "year": "2023",
+ "period": {
+  "tr": "9 Aylık",
+  "en": "9 Months"
+ },
+ "relatedStocks": [],
+ "summary": {
+  "tr": "Q3 Finansal Rapor",
+  "en": null
+ },
+ "time": "27.10.2023 18:15:08",
+ "link": "https://www.kap.org.tr/Bildirim/1211007",
+ "attachmentUrls": [
+  {
+   "url": "https://vykapialpha.mkk.com.tr/api/vyk/downloadAttachment/4028328d8b2fcee7018b71a87233524f",
+   "fileName": "ULASLAR 30 09 2023 SPK.pdf"
+  }
+ ],
+ "presentation": [
+  {
+   "id": "general_role_210015",
+   "content": {
+    "id": "general_role_210015",
+    "isMultiDimensional": "no",
+    "ContextList": {
+     "Context": [
+      {
+       "id": "2022-12-31",
+       "key": "PREV",
+       "Period": {
+        "instant": "2022-12-31"
+       }
+      },
+      {
+       "id": "2023-09-30",
+       "key": "CURR",
+       "Period": {
+        "instant": "2023-09-30"
+       }
+      }
+     ]
+    },
+    "ReportItem": {
+     "name": "StatementOfFinancialPositionBalanceSheetAbstract",
+     "abstract": "true",
+     "langs": {
+      "lang": [
+       {
+        "code": "tr",
+        "value": "Finansal Durum Tablosu (Bilanço)"
+       },
+       {
+        "code": "en",
+        "value": "Statement of Financial Position (Balance Sheet)"
+       }
+      ]
+     },
+     "ReportItem": [
+      {
+       "name": "AssetsAbstract",
+       "abstract": "true",
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "Varlıklar"
+         },
+         {
+          "code": "en",
+          "value": "Assets [abstract]"
+         }
+        ]
+       },
+       "ReportItem": [
+        {
+         "preferredLabel": "standartCapitalsLabel",
+         "name": "CurrentAssetsAbstract",
+         "abstract": "true",
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "DÖNEN VARLIKLAR"
+           },
+           {
+            "code": "en",
+            "value": "CURRENT ASSETS"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "name": "CashAndCashEquivalents",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "13138717"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "4015348"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Nakit ve Nakit Benzerleri"
+             },
+             {
+              "code": "en",
+              "value": "Cash and cash equivalents"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "terseLabel",
+           "name": "CurrentFinancialInvestments",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "16942230"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "18426644"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Finansal Yatırımlar"
+             },
+             {
+              "code": "en",
+              "value": "Financial Investments"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "terseLabel",
+           "name": "OtherCurrentReceivables",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "6626716"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "3398692"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Diğer Alacaklar"
+             },
+             {
+              "code": "en",
+              "value": "Other Receivables"
+             }
+            ]
+           },
+           "ReportItem": [
+            {
+             "preferredLabel": "terseLabel",
+             "name": "OtherCurrentReceivablesDueFromRelatedParties",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "679452"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "0"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "İlişkili Taraflardan Diğer Alacaklar"
+               },
+               {
+                "code": "en",
+                "value": "Other Receivables Due From Related Parties"
+               }
+              ]
+             }
+            },
+            {
+             "preferredLabel": "terseLabel",
+             "name": "OtherCurrentReceivablesDueFromUnrelatedParties",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "5947264"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "3398692"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "İlişkili Olmayan Taraflardan Diğer Alacaklar"
+               },
+               {
+                "code": "en",
+                "value": "Other Receivables Due From Unrelated Parties"
+               }
+              ]
+             }
+            }
+           ]
+          },
+          {
+           "name": "OtherCurrentAssets",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "49495"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "40738"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Diğer Dönen Varlıklar"
+             },
+             {
+              "code": "en",
+              "value": "Other current assets"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "alternativeTotalLabel",
+           "name": "CurrentAssetsOtherThanAssetsOrDisposalGroupsClassifiedAsHeldForSaleOrAsHeldForDistributionToOwners",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "36757158"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "25881422"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "ARA TOPLAM"
+             },
+             {
+              "code": "en",
+              "value": "SUB-TOTAL"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "totalLabel",
+           "name": "CurrentAssets",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "36757158"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "25881422"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "TOPLAM DÖNEN VARLIKLAR"
+             },
+             {
+              "code": "en",
+              "value": "Total current assets"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "preferredLabel": "standartCapitalsLabel",
+         "name": "NoncurrentAssetsAbstract",
+         "abstract": "true",
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "DURAN VARLIKLAR"
+           },
+           {
+            "code": "en",
+            "value": "NON-CURRENT ASSETS"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "preferredLabel": "terseLabel",
+           "name": "OtherNoncurrentReceivables",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "10811896"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "10975680"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Diğer Alacaklar"
+             },
+             {
+              "code": "en",
+              "value": "Other Receivables"
+             }
+            ]
+           },
+           "ReportItem": {
+            "preferredLabel": "terseLabel",
+            "name": "OtherNoncurrentReceivablesDueFromUnrelatedParties",
+            "Values": {
+             "Value": [
+              {
+               "contextId": "2023-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "10811896"
+              },
+              {
+               "contextId": "2022-12-31",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "10975680"
+              }
+             ]
+            },
+            "langs": {
+             "lang": [
+              {
+               "code": "tr",
+               "value": "İlişkili Olmayan Taraflardan Diğer Alacaklar"
+              },
+              {
+               "code": "en",
+               "value": "Other Receivables Due From Unrelated Parties"
+              }
+             ]
+            }
+           }
+          },
+          {
+           "name": "InvestmentProperty",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "170000000"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "105000000"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Yatırım Amaçlı Gayrimenkuller"
+             },
+             {
+              "code": "en",
+              "value": "Investment property"
+             }
+            ]
+           }
+          },
+          {
+           "name": "PropertyPlantAndEquipment",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "689127"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "700904"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Maddi Duran Varlıklar"
+             },
+             {
+              "code": "en",
+              "value": "Property, plant and equipment"
+             }
+            ]
+           },
+           "ReportItem": [
+            {
+             "name": "LandAndPremises",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "75198"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "75199"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Arazi ve Arsalar"
+               },
+               {
+                "code": "en",
+                "value": "Land and Premises"
+               }
+              ]
+             }
+            },
+            {
+             "name": "Buildings",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "243510"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "244802"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Binalar"
+               },
+               {
+                "code": "en",
+                "value": "Buildings"
+               }
+              ]
+             }
+            },
+            {
+             "name": "MachineryAndEquipments",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "5909"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "7636"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Tesis, Makine ve Cihazlar"
+               },
+               {
+                "code": "en",
+                "value": "Machinery And Equipments"
+               }
+              ]
+             }
+            },
+            {
+             "name": "Vehicles",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "243116"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "284206"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Taşıtlar"
+               },
+               {
+                "code": "en",
+                "value": "Vehicles"
+               }
+              ]
+             }
+            },
+            {
+             "name": "FixturesAndFittings",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "121394"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "89061"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Mobilya ve Demirbaşlar"
+               },
+               {
+                "code": "en",
+                "value": "Fixtures and fittings"
+               }
+              ]
+             }
+            }
+           ]
+          },
+          {
+           "name": "IntangibleAssetsAndGoodwill",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "9403"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "10550"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Maddi Olmayan Duran Varlıklar"
+             },
+             {
+              "code": "en",
+              "value": "Intangible assets and goodwill"
+             }
+            ]
+           },
+           "ReportItem": {
+            "name": "OtherIntangibleAssets",
+            "Values": {
+             "Value": [
+              {
+               "contextId": "2023-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "9403"
+              },
+              {
+               "contextId": "2022-12-31",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "10550"
+              }
+             ]
+            },
+            "langs": {
+             "lang": [
+              {
+               "code": "tr",
+               "value": "Diğer Maddi Olmayan Duran Varlıklar"
+              },
+              {
+               "code": "en",
+               "value": "Other intangible assets"
+              }
+             ]
+            }
+           }
+          },
+          {
+           "preferredLabel": "totalLabel",
+           "name": "NoncurrentAssets",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "181510426"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "116687134"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "TOPLAM DURAN VARLIKLAR"
+             },
+             {
+              "code": "en",
+              "value": "Total non-current assets"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "preferredLabel": "totalLabel",
+         "name": "Assets",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "218267584"
+           },
+           {
+            "contextId": "2022-12-31",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "142568556"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "TOPLAM VARLIKLAR"
+           },
+           {
+            "code": "en",
+            "value": "Total assets"
+           }
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "preferredLabel": "verboseLabel",
+       "name": "EquityAndLiabilitiesAbstract",
+       "abstract": "true",
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "KAYNAKLAR"
+         },
+         {
+          "code": "en",
+          "value": "LIABILITIES AND EQUITY"
+         }
+        ]
+       },
+       "ReportItem": [
+        {
+         "preferredLabel": "standartCapitalsLabel",
+         "name": "CurrentLiabilitiesAbstract",
+         "abstract": "true",
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "KISA VADELİ YÜKÜMLÜLÜKLER"
+           },
+           {
+            "code": "en",
+            "value": "CURRENT LIABILITIES"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "name": "CurrentBorowings",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "43850"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "14935"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Kısa Vadeli Borçlanmalar"
+             },
+             {
+              "code": "en",
+              "value": "Current Borrowings"
+             }
+            ]
+           },
+           "ReportItem": {
+            "name": "CurrentBorrowingsFromUnrelatedParties",
+            "Values": {
+             "Value": [
+              {
+               "contextId": "2023-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "43850"
+              },
+              {
+               "contextId": "2022-12-31",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "14935"
+              }
+             ]
+            },
+            "langs": {
+             "lang": [
+              {
+               "code": "tr",
+               "value": "İlişkili Olmayan Taraflardan Kısa Vadeli Borçlanmalar"
+              },
+              {
+               "code": "en",
+               "value": "Current Borrowings From Unrelated Parties"
+              }
+             ]
+            }
+           }
+          },
+          {
+           "preferredLabel": "terseLabel",
+           "name": "CurrentTradePayables",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "1422"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "47220"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Ticari Borçlar"
+             },
+             {
+              "code": "en",
+              "value": "Trade Payables"
+             }
+            ]
+           },
+           "ReportItem": {
+            "preferredLabel": "terseLabel",
+            "name": "CurrentTradePayablesToUnrelatedParties",
+            "Values": {
+             "Value": [
+              {
+               "contextId": "2023-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "1422"
+              },
+              {
+               "contextId": "2022-12-31",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "47220"
+              }
+             ]
+            },
+            "langs": {
+             "lang": [
+              {
+               "code": "tr",
+               "value": "İlişkili Olmayan Taraflara Ticari Borçlar"
+              },
+              {
+               "code": "en",
+               "value": "Trade Payables to Unrelated Parties"
+              }
+             ]
+            }
+           }
+          },
+          {
+           "preferredLabel": "terseLabel",
+           "name": "CurrentEmployeeBenefitObligations",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "178848"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "224454"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Çalışanlara Sağlanan Faydalar Kapsamında Borçlar"
+             },
+             {
+              "code": "en",
+              "value": "Employee Benefit Obligations"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "terseLabel",
+           "name": "OtherCurrentPayables",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "252114"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "113774"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Diğer Borçlar"
+             },
+             {
+              "code": "en",
+              "value": "Other Payables"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "verboseLabel",
+           "name": "DeferredIncomeClassifiedAsCurrent",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "5825282"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "3978677"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Ertelenmiş Gelirler (Müşteri Sözleşmelerinden Doğan Yükümlülüklerin Dışında Kalanlar)"
+             },
+             {
+              "code": "en",
+              "value": "Deferred Income Other Than Contract Liabilities"
+             }
+            ]
+           },
+           "ReportItem": {
+            "preferredLabel": "verboseLabel",
+            "name": "DeferredIncomeFromUnrelatedPartiesClassifiedAsCurrent",
+            "Values": {
+             "Value": [
+              {
+               "contextId": "2023-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "5825282"
+              },
+              {
+               "contextId": "2022-12-31",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "3978677"
+              }
+             ]
+            },
+            "langs": {
+             "lang": [
+              {
+               "code": "tr",
+               "value": "İlişkili Olmayan Taraflardan Ertelenmiş Gelirler (Müşteri Sözleşmelerinden Doğan Yükümlülüklerin Dışında Kalanlar)"
+              },
+              {
+               "code": "en",
+               "value": "Deferred Income Other Than Contract Liabilities from Unrelated Parties"
+              }
+             ]
+            }
+           }
+          },
+          {
+           "preferredLabel": "terseLabel",
+           "name": "CurrentTaxLiabilitiesCurrent",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "941378"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "128929"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Dönem Karı Vergi Yükümlülüğü"
+             },
+             {
+              "code": "en",
+              "value": "Current tax liabilities, current"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "alternativeTotalLabel",
+           "name": "CurrentLiabilitiesOtherThanLiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "7242894"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "4507989"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "ARA TOPLAM"
+             },
+             {
+              "code": "en",
+              "value": "SUB-TOTAL"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "totalLabel",
+           "name": "CurrentLiabilities",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "7242894"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "4507989"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "TOPLAM KISA VADELİ YÜKÜMLÜLÜKLER"
+             },
+             {
+              "code": "en",
+              "value": "Total current liabilities"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "preferredLabel": "standartCapitalsLabel",
+         "name": "NoncurrentLiabilitiesAbstract",
+         "abstract": "true",
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "UZUN VADELİ YÜKÜMLÜLÜKLER"
+           },
+           {
+            "code": "en",
+            "value": "NON-CURRENT LIABILITIES"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "preferredLabel": "verboseLabel",
+           "name": "DeferredIncomeClassifiedAsNoncurrent",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "13262492"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "12034135"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Ertelenmiş Gelirler (Müşteri Sözleşmelerinden Doğan Yükümlülüklerin Dışında Kalanlar)"
+             },
+             {
+              "code": "en",
+              "value": "Deferred Income Other Than Contract Liabilities"
+             }
+            ]
+           },
+           "ReportItem": {
+            "preferredLabel": "verboseLabel",
+            "name": "DeferredIncomeClassifiedAsNoncurrentFromUnrelatedPparties",
+            "Values": {
+             "Value": [
+              {
+               "contextId": "2023-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "13262492"
+              },
+              {
+               "contextId": "2022-12-31",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "12034135"
+              }
+             ]
+            },
+            "langs": {
+             "lang": [
+              {
+               "code": "tr",
+               "value": "İlişkili Olmayan Taraflardan Ertelenmiş Gelirler (Müşteri Sözleşmelerinden Doğan Yükümlülüklerin Dışında Kalanlar)"
+              },
+              {
+               "code": "en",
+               "value": "Deferred Income Other Than Contract Liabilities from Unrelated Parties"
+              }
+             ]
+            }
+           }
+          },
+          {
+           "name": "NoncurrentProvisions",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "43912"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "463134"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Uzun Vadeli Karşılıklar"
+             },
+             {
+              "code": "en",
+              "value": "Non-current provisions"
+             }
+            ]
+           },
+           "ReportItem": [
+            {
+             "name": "NoncurrentProvisionsForEmployeeBenefits",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "13912"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "433134"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Çalışanlara Sağlanan Faydalara İlişkin Uzun Vadeli Karşılıklar"
+               },
+               {
+                "code": "en",
+                "value": "Non-current provisions for employee benefits"
+               }
+              ]
+             }
+            },
+            {
+             "name": "OtherLongtermProvisions",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "30000"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "30000"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Diğer Uzun Vadeli Karşılıklar"
+               },
+               {
+                "code": "en",
+                "value": "Other non-current provisions"
+               }
+              ]
+             }
+            }
+           ]
+          },
+          {
+           "preferredLabel": "terseLabel",
+           "name": "DeferredTaxLiabilities",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "24769656"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "10064438"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Ertelenmiş Vergi Yükümlülüğü"
+             },
+             {
+              "code": "en",
+              "value": "Deferred Tax Liabilities"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "totalLabel",
+           "name": "NoncurrentLiabilities",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "38076060"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "22561707"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "TOPLAM UZUN VADELİ YÜKÜMLÜLÜKLER"
+             },
+             {
+              "code": "en",
+              "value": "Total non-current liabilities"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "preferredLabel": "totalLabel",
+         "name": "Liabilities",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "45318954"
+           },
+           {
+            "contextId": "2022-12-31",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "27069696"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "TOPLAM YÜKÜMLÜLÜKLER"
+           },
+           {
+            "code": "en",
+            "value": "Total liabilities"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "terseLabel",
+         "name": "EquityAbstract",
+         "abstract": "true",
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "ÖZKAYNAKLAR"
+           },
+           {
+            "code": "en",
+            "value": "EQUITY"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "name": "EquityAttributableToOwnersOfParent",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "172948630"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "115498860"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Ana Ortaklığa Ait Özkaynaklar"
+             },
+             {
+              "code": "en",
+              "value": "Equity attributable to owners of parent"
+             }
+            ]
+           },
+           "ReportItem": [
+            {
+             "name": "IssuedCapital",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "25382175"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "25382175"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Ödenmiş Sermaye"
+               },
+               {
+                "code": "en",
+                "value": "Issued capital"
+               }
+              ]
+             }
+            },
+            {
+             "preferredLabel": "verboseLabel",
+             "name": "SharePremium",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "1934762"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "1934762"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Paylara İlişkin Primler (İskontolar)"
+               },
+               {
+                "code": "en",
+                "value": "Share Premium (Discount)"
+               }
+              ]
+             }
+            },
+            {
+             "preferredLabel": "terseLabel",
+             "name": "OtherAccumulatedComprehensiveIncomeThatWillNotBeReclassifiedInProfitOrLoss",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "3096432"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "2877807"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Kar veya Zararda Yeniden Sınıflandırılmayacak Birikmiş Diğer Kapsamlı Gelirler (Giderler)"
+               },
+               {
+                "code": "en",
+                "value": "Other Accumulated Comprehensive Income (Loss) that will not be Reclassified in Profit or Loss"
+               }
+              ]
+             },
+             "ReportItem": {
+              "preferredLabel": "terseLabel",
+              "name": "AccumulatedRevaluationAndRemeasurementGainsOrLossesThatWillNotBeReclassifiedInProfitOrLoss",
+              "Values": {
+               "Value": [
+                {
+                 "contextId": "2023-09-30",
+                 "currency": "TRY",
+                 "rounding": "INF",
+                 "value": "3096432"
+                },
+                {
+                 "contextId": "2022-12-31",
+                 "currency": "TRY",
+                 "rounding": "INF",
+                 "value": "2877807"
+                }
+               ]
+              },
+              "langs": {
+               "lang": [
+                {
+                 "code": "tr",
+                 "value": "Yeniden Değerleme ve Ölçüm Kazançları (Kayıpları)"
+                },
+                {
+                 "code": "en",
+                 "value": "Gains (Losses) on Revaluation and Remeasurement"
+                }
+               ]
+              },
+              "ReportItem": [
+               {
+                "preferredLabel": "terseLabel",
+                "name": "AccumulatedIncreasesOrDecreasesOnRevaluationOfPropertyPlantAndEquipment",
+                "Values": {
+                 "Value": [
+                  {
+                   "contextId": "2023-09-30",
+                   "currency": "TRY",
+                   "rounding": "INF",
+                   "value": "3096432"
+                  },
+                  {
+                   "contextId": "2022-12-31",
+                   "currency": "TRY",
+                   "rounding": "INF",
+                   "value": "3096432"
+                  }
+                 ]
+                },
+                "langs": {
+                 "lang": [
+                  {
+                   "code": "tr",
+                   "value": "Maddi Duran Varlık Yeniden Değerleme Artışları (Azalışları)"
+                  },
+                  {
+                   "code": "en",
+                   "value": "Increases (Decreases) on Revaluation of Property, Plant and Equipment"
+                  }
+                 ]
+                }
+               },
+               {
+                "preferredLabel": "terseLabel",
+                "name": "AccumulatedGainsOrLossesOnRemeasurementsOfDefinedBenefitPlans",
+                "Values": {
+                 "Value": {
+                  "contextId": "2022-12-31",
+                  "currency": "TRY",
+                  "rounding": "INF",
+                  "value": "-218625"
+                 }
+                },
+                "langs": {
+                 "lang": [
+                  {
+                   "code": "tr",
+                   "value": "Tanımlanmış Fayda Planları Yeniden Ölçüm Kazançları (Kayıpları)"
+                  },
+                  {
+                   "code": "en",
+                   "value": "Gains (Losses) on Remeasurements of Defined Benefit Plans"
+                  }
+                 ]
+                }
+               }
+              ]
+             }
+            },
+            {
+             "name": "RestrictedReservesAppropriatedFromProfits",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "2491839"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "2491839"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Kardan Ayrılan Kısıtlanmış Yedekler"
+               },
+               {
+                "code": "en",
+                "value": "Restricted Reserves Appropriated From Profits"
+               }
+              ]
+             },
+             "ReportItem": [
+              {
+               "name": "ProfitFromSalesOfParticipationSharesOrPropertyThatWillBbeAddedToShareCapital",
+               "Values": {
+                "Value": [
+                 {
+                  "contextId": "2023-09-30",
+                  "currency": "TRY",
+                  "rounding": "INF",
+                  "value": "2450946"
+                 },
+                 {
+                  "contextId": "2022-12-31",
+                  "currency": "TRY",
+                  "rounding": "INF",
+                  "value": "2450946"
+                 }
+                ]
+               },
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Sermayeye Eklenecek Gayrimenkul veya İştirak Satış Kazancı"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Profit from Sales of Participation Shares or Property that will be Added to Share Capital"
+                 }
+                ]
+               }
+              },
+              {
+               "name": "LegalReserves",
+               "Values": {
+                "Value": [
+                 {
+                  "contextId": "2023-09-30",
+                  "currency": "TRY",
+                  "rounding": "INF",
+                  "value": "40893"
+                 },
+                 {
+                  "contextId": "2022-12-31",
+                  "currency": "TRY",
+                  "rounding": "INF",
+                  "value": "40893"
+                 }
+                ]
+               },
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Yasal Yedekler"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Legal Reserves"
+                 }
+                ]
+               }
+              }
+             ]
+            },
+            {
+             "name": "PriorYearsProfitsOrLosses",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "82593652"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "25674909"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Geçmiş Yıllar Karları veya Zararları"
+               },
+               {
+                "code": "en",
+                "value": "Prior Years' Profits or Losses"
+               }
+              ]
+             }
+            },
+            {
+             "name": "CurrentPeriodNetProfitOrLossClassifiedInEquity",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "57449770"
+               },
+               {
+                "contextId": "2022-12-31",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "57137368"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Net Dönem Karı veya Zararı"
+               },
+               {
+                "code": "en",
+                "value": "Current Period Net Profit Or Loss"
+               }
+              ]
+             }
+            }
+           ]
+          },
+          {
+           "preferredLabel": "totalLabel",
+           "name": "Equity",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "172948630"
+             },
+             {
+              "contextId": "2022-12-31",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "115498860"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "TOPLAM ÖZKAYNAKLAR"
+             },
+             {
+              "code": "en",
+              "value": "Total equity"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "preferredLabel": "terseTotalLabel",
+         "name": "EquityAndLiabilities",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "218267584"
+           },
+           {
+            "contextId": "2022-12-31",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "142568556"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "TOPLAM KAYNAKLAR"
+           },
+           {
+            "code": "en",
+            "value": "Total Liabilities and Equity"
+           }
+          ]
+         }
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "general_role_310000",
+   "content": {
+    "id": "general_role_310000",
+    "isMultiDimensional": "yes",
+    "ContextList": {
+     "Context": [
+      {
+       "id": "2023-07-012023-09-30",
+       "key": "CURR3",
+       "Period": {
+        "startDate": "2023-07-01",
+        "endDate": "2023-09-30"
+       }
+      },
+      {
+       "id": "2022-01-012022-09-30",
+       "key": "PREV",
+       "Period": {
+        "startDate": "2022-01-01",
+        "endDate": "2022-09-30"
+       }
+      },
+      {
+       "id": "2022-07-012022-09-30",
+       "key": "PREV3",
+       "Period": {
+        "startDate": "2022-07-01",
+        "endDate": "2022-09-30"
+       }
+      },
+      {
+       "id": "2023-01-012023-09-30",
+       "key": "CURR",
+       "Period": {
+        "startDate": "2023-01-01",
+        "endDate": "2023-09-30"
+       }
+      }
+     ]
+    },
+    "ReportItem": {
+     "name": "IncomeStatementAbstract",
+     "abstract": "true",
+     "langs": {
+      "lang": [
+       {
+        "code": "tr",
+        "value": "Kar veya Zarar Tablosu"
+       },
+       {
+        "code": "en",
+        "value": "Profit or loss [abstract]"
+       }
+      ]
+     },
+     "ReportItem": [
+      {
+       "preferredLabel": "verboseLabel",
+       "name": "ProfitLossAbstract",
+       "abstract": "true",
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "KAR VEYA ZARAR KISMI"
+         },
+         {
+          "code": "en",
+          "value": "PROFIT (LOSS)"
+         }
+        ]
+       },
+       "ReportItem": [
+        {
+         "preferredLabel": "standartCapitalsLabel",
+         "name": "GrossProfitLossFromCommercialOperations",
+         "Values": {
+          "Value": {
+           "contextId": "2023-01-012023-09-30",
+           "currency": "TRY",
+           "rounding": "INF",
+           "value": "0"
+          }
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "TİCARİ FAALİYETLERDEN BRÜT KAR (ZARAR)"
+           },
+           {
+            "code": "en",
+            "value": "GROSS PROFIT (LOSS) FROM COMMERCIAL OPERATIONS"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "standartCapitalsLabel",
+         "name": "GrossProfit",
+         "Values": {
+          "Value": {
+           "contextId": "2023-01-012023-09-30",
+           "currency": "TRY",
+           "rounding": "INF",
+           "value": "0"
+          }
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "BRÜT KAR (ZARAR)"
+           },
+           {
+            "code": "en",
+            "value": "GROSS PROFIT (LOSS)"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "negatedVerboseLabel",
+         "name": "AdministrativeExpense",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "5955127"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2493722"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2298633"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "934105"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Genel Yönetim Giderleri"
+           },
+           {
+            "code": "en",
+            "value": "General Administrative Expenses"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "verboseLabel",
+         "name": "OtherIncome",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "15622997"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "12348433"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1987239"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "3900370"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Esas Faaliyetlerden Diğer Gelirler"
+           },
+           {
+            "code": "en",
+            "value": "Other Income from Operating Activities"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "negatedVerboseLabel",
+         "name": "OtherExpenseByFunction",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "7416660"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "6067136"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1858996"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1748089"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Esas Faaliyetlerden Diğer Giderler"
+           },
+           {
+            "code": "en",
+            "value": "Other Expenses from Operating Activities"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "standartCapitalsLabel",
+         "name": "ProfitLossFromOperatingActivities",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2251210"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "3787575"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-2170390"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1218176"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "ESAS FAALİYET KARI (ZARARI)"
+           },
+           {
+            "code": "en",
+            "value": "PROFIT (LOSS) FROM OPERATING ACTIVITIES"
+           }
+          ]
+         }
+        },
+        {
+         "name": "InvestmentActivityIncome",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "74699471"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2654728"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "7354589"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1311982"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Yatırım Faaliyetlerinden Gelirler"
+           },
+           {
+            "code": "en",
+            "value": "Investment Activity Income"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "negatedLabel",
+         "name": "InvestmentActivityExpenses",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "18667"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1607734"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-701538"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "19147"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Yatırım Faaliyetlerinden Giderler"
+           },
+           {
+            "code": "en",
+            "value": "Investment Activity Expenses"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "negatedLabel",
+         "name": "ImpairmentLossImpairmentGainAndReversalOfImpairmentLossDeterminedInAccordanceWithIFRS9",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "32460"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "12898"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-38468"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-9466"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "TFRS 9 Uyarınca Belirlenen Değer Düşüklüğü Kazançları (Zararları) ve Değer Düşüklüğü Zararlarının İptalleri"
+           },
+           {
+            "code": "en",
+            "value": "Impairment gain and reversal of impairment loss (impairment loss) determined in accordance with IFRS 9"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "standartCapitalsLabel",
+         "name": "ProfitLossBeforeFinancingExpense",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "76899554"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "4821671"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "5924205"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2520477"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "FİNANSMAN GELİRİ (GİDERİ) ÖNCESİ FAALİYET KARI (ZARARI)"
+           },
+           {
+            "code": "en",
+            "value": "PROFIT (LOSS) BEFORE FINANCING INCOME (EXPENSE)"
+           }
+          ]
+         }
+        },
+        {
+         "name": "FinanceIncome",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "6422744"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "4469872"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2104447"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1646832"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Finansman Gelirleri"
+           },
+           {
+            "code": "en",
+            "value": "Finance income"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "negatedLabel",
+         "name": "FinanceCosts",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "9169307"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "4281106"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "4332999"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2051837"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Finansman Giderleri"
+           },
+           {
+            "code": "en",
+            "value": "Finance costs"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "standartCapitalsLabel",
+         "name": "ProfitLossBeforeTax",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "74152991"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "5010437"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "3695653"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2115472"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "SÜRDÜRÜLEN FAALİYETLER VERGİ ÖNCESİ KARI (ZARARI)"
+           },
+           {
+            "code": "en",
+            "value": "PROFIT (LOSS) FROM CONTINUING OPERATIONS, BEFORE TAX"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "negatedLabel",
+         "name": "IncomeTaxExpenseContinuingOperations",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "16703221"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1899923"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "8598782"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "479517"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Sürdürülen Faaliyetler Vergi (Gideri) Geliri"
+           },
+           {
+            "code": "en",
+            "value": "Tax (Expense) Income, Continuing Operations"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "preferredLabel": "negatedTerseLabel",
+           "name": "CurrentPeriodTaxExpenseContinuingOperations",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "1998003"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "1685035"
+             },
+             {
+              "contextId": "2023-07-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "729116"
+             },
+             {
+              "contextId": "2022-07-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "481427"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Dönem Vergi (Gideri) Geliri"
+             },
+             {
+              "code": "en",
+              "value": "Current Period Tax (Expense) Income"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "negatedTerseLabel",
+           "name": "DeferredIncomeTaxExpenseContinuingOperations",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "14705218"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "214888"
+             },
+             {
+              "contextId": "2023-07-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "7869666"
+             },
+             {
+              "contextId": "2022-07-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "-1910"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Ertelenmiş Vergi (Gideri) Geliri"
+             },
+             {
+              "code": "en",
+              "value": "Deferred Tax (Expense) Income"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "preferredLabel": "standartCapitalsLabel",
+         "name": "ProfitLossFromContinuingOperations",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "57449770"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "3110514"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-4903129"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1635955"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "SÜRDÜRÜLEN FAALİYETLER DÖNEM KARI (ZARARI)"
+           },
+           {
+            "code": "en",
+            "value": "PROFIT (LOSS) FROM CONTINUING OPERATIONS"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "standartCapitalsLabel",
+         "name": "ProfitLoss",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "57449770"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "3110514"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-4903129"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1635955"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "DÖNEM KARI (ZARARI)"
+           },
+           {
+            "code": "en",
+            "value": "PROFIT (LOSS)"
+           }
+          ]
+         }
+        },
+        {
+         "name": "ProfitLossAttributableToAbstract",
+         "abstract": "true",
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Dönem Karının (Zararının) Dağılımı"
+           },
+           {
+            "code": "en",
+            "value": "Profit (loss), attributable to [abstract]"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "preferredLabel": "verboseLabel",
+           "name": "ProfitLossAttributableToNoncontrollingInterests",
+           "Values": {
+            "Value": {
+             "contextId": "2023-01-012023-09-30",
+             "currency": "TRY",
+             "rounding": "INF",
+             "value": "0"
+            }
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Kontrol Gücü Olmayan Paylar"
+             },
+             {
+              "code": "en",
+              "value": "Non-controlling Interests"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "verboseLabel",
+           "name": "ProfitLossAttributableToOwnersOfParent",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "57449770"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "3110514"
+             },
+             {
+              "contextId": "2023-07-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "-4903129"
+             },
+             {
+              "contextId": "2022-07-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "1635955"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Ana Ortaklık Payları"
+             },
+             {
+              "code": "en",
+              "value": "Owners of Parent"
+             }
+            ]
+           }
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "name": "EarningsPerShareAbstract",
+       "abstract": "true",
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "Pay Başına Kazanç"
+         },
+         {
+          "code": "en",
+          "value": "Earnings per share [abstract]"
+         }
+        ]
+       },
+       "ReportItem": [
+        {
+         "isHypercubeItem": "yes",
+         "name": "EarningsPerShareTable",
+         "abstract": "true",
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Pay Başına Kazanç"
+           },
+           {
+            "code": "en",
+            "value": "Earnings per share [table]"
+           }
+          ]
+         },
+         "ReportItem": {
+          "isDimensionItem": "yes",
+          "isTypedDomain": "yes",
+          "name": "ClassesOfShares",
+          "abstract": "true",
+          "langs": {
+           "lang": [
+            {
+             "code": "tr",
+             "value": "Pay Başına Kazanç"
+            },
+            {
+             "code": "en",
+             "value": "Classes of Shares"
+            }
+           ]
+          }
+         }
+        },
+        {
+         "isLineItem": "yes",
+         "name": "EarningsPerShareLineItems",
+         "abstract": "true",
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Pay Başına Kazanç"
+           },
+           {
+            "code": "en",
+            "value": "Earnings per share [line items]"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "preferredLabel": "terseLabel",
+           "name": "BasicEarningsPerShareAbstract",
+           "abstract": "true",
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Pay Başına Kazanç (Zarar)"
+             },
+             {
+              "code": "en",
+              "value": "Basic earnings per share"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "terseLabel",
+           "name": "DilutedEarningsPerShareAbstract",
+           "abstract": "true",
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Sulandırılmış Pay Başına Kazanç (Zarar)"
+             },
+             {
+              "code": "en",
+              "value": "Diluted Earnings Per Share"
+             }
+            ]
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "general_role_420000",
+   "content": {
+    "id": "general_role_420000",
+    "isMultiDimensional": "no",
+    "ContextList": {
+     "Context": [
+      {
+       "id": "2023-07-012023-09-30",
+       "key": "CURR3",
+       "Period": {
+        "startDate": "2023-07-01",
+        "endDate": "2023-09-30"
+       }
+      },
+      {
+       "id": "2022-01-012022-09-30",
+       "key": "PREV",
+       "Period": {
+        "startDate": "2022-01-01",
+        "endDate": "2022-09-30"
+       }
+      },
+      {
+       "id": "2022-07-012022-09-30",
+       "key": "PREV3",
+       "Period": {
+        "startDate": "2022-07-01",
+        "endDate": "2022-09-30"
+       }
+      },
+      {
+       "id": "2023-01-012023-09-30",
+       "key": "CURR",
+       "Period": {
+        "startDate": "2023-01-01",
+        "endDate": "2023-09-30"
+       }
+      }
+     ]
+    },
+    "ReportItem": {
+     "name": "StatementOfOtherComprehensiveIncomeAbstract",
+     "abstract": "true",
+     "langs": {
+      "lang": [
+       {
+        "code": "tr",
+        "value": "Diğer Kapsamlı Gelir Tablosu"
+       },
+       {
+        "code": "en",
+        "value": "Statement of Other Comprehensive Income"
+       }
+      ]
+     },
+     "ReportItem": [
+      {
+       "preferredLabel": "standartCapitalsLabel",
+       "name": "ProfitLoss",
+       "Values": {
+        "Value": [
+         {
+          "contextId": "2023-01-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "57449770"
+         },
+         {
+          "contextId": "2022-01-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "3110514"
+         },
+         {
+          "contextId": "2023-07-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "-4903129"
+         },
+         {
+          "contextId": "2022-07-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "1635955"
+         }
+        ]
+       },
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "DÖNEM KARI (ZARARI)"
+         },
+         {
+          "code": "en",
+          "value": "PROFIT (LOSS)"
+         }
+        ]
+       }
+      },
+      {
+       "preferredLabel": "verboseLabel",
+       "name": "OtherComprehensiveIncomeAbstract",
+       "abstract": "true",
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "DİĞER KAPSAMLI GELİRLER"
+         },
+         {
+          "code": "en",
+          "value": "OTHER COMPREHENSIVE INCOME"
+         }
+        ]
+       },
+       "ReportItem": [
+        {
+         "preferredLabel": "alternativeTotalLabel",
+         "name": "OtherComprehensiveIncomeThatWillNotBeReclassifiedToProfitOrLossNetOfTax",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "0"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-80044"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "0"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-42617"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Kar veya Zararda Yeniden Sınıflandırılmayacaklar"
+           },
+           {
+            "code": "en",
+            "value": "Other Comprehensive Income that will not be Reclassified to Profit or Loss"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "preferredLabel": "terseLabel",
+           "name": "OtherComprehensiveIncomeBeforeTaxGainsLossesOnRemeasurementsOfDefinedBenefitPlans",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "-100055"
+             },
+             {
+              "contextId": "2022-07-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "-53271"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Tanımlanmış Fayda Planları Yeniden Ölçüm Kazançları (Kayıpları)"
+             },
+             {
+              "code": "en",
+              "value": "Gains (Losses) on Remeasurements of Defined Benefit Plans"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "negatedTerseLabel",
+           "name": "IncomeTaxRelatingToComponentsOfOtherComprehensiveIncomeThatWillNotBeReclassifiedToProfitOrLoss",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "-20011"
+             },
+             {
+              "contextId": "2023-07-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "0"
+             },
+             {
+              "contextId": "2022-07-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "-10654"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Kar veya Zararda Yeniden Sınıflandırılmayacak Diğer Kapsamlı Gelire İlişkin Vergiler"
+             },
+             {
+              "code": "en",
+              "value": "Taxes Relating To Components Of Other Comprehensive Income That Will Not Be Reclassified To Profit Or Loss"
+             }
+            ]
+           },
+           "ReportItem": {
+            "preferredLabel": "negatedTerseLabel",
+            "name": "IncomeTaxRelatingToRemeasurementsOfDefinedBenefitPlansOfOtherComprehensiveIncome",
+            "Values": {
+             "Value": [
+              {
+               "contextId": "2022-01-012022-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "-20011"
+              },
+              {
+               "contextId": "2022-07-012022-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "-10654"
+              }
+             ]
+            },
+            "langs": {
+             "lang": [
+              {
+               "code": "tr",
+               "value": "Tanımlanmış Fayda Planları Yeniden Ölçüm Kazançları (Kayıpları), Vergi Etkisi"
+              },
+              {
+               "code": "en",
+               "value": "Taxes Relating to Remeasurements of Defined Benefit Plans"
+              }
+             ]
+            }
+           }
+          }
+         ]
+        },
+        {
+         "preferredLabel": "alternativeTotalLabel",
+         "name": "OtherComprehensiveIncomeThatWillBeReclassifiedToProfitOrLossNetOfTax",
+         "Values": {
+          "Value": {
+           "contextId": "2023-01-012023-09-30",
+           "currency": "TRY",
+           "rounding": "INF",
+           "value": "0"
+          }
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Kar veya Zarar Olarak Yeniden Sınıflandırılacaklar"
+           },
+           {
+            "code": "en",
+            "value": "Other Comprehensive Income That Will Be Reclassified to Profit or Loss"
+           }
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "preferredLabel": "alternativeTotalLabel",
+       "name": "OtherComprehensiveIncome",
+       "Values": {
+        "Value": [
+         {
+          "contextId": "2023-01-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "0"
+         },
+         {
+          "contextId": "2022-01-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "-80044"
+         },
+         {
+          "contextId": "2023-07-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "0"
+         },
+         {
+          "contextId": "2022-07-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "-42617"
+         }
+        ]
+       },
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "DİĞER KAPSAMLI GELİR (GİDER)"
+         },
+         {
+          "code": "en",
+          "value": "OTHER COMPREHENSIVE INCOME (LOSS)"
+         }
+        ]
+       }
+      },
+      {
+       "preferredLabel": "alternativeTotalLabel",
+       "name": "ComprehensiveIncome",
+       "Values": {
+        "Value": [
+         {
+          "contextId": "2023-01-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "57449770"
+         },
+         {
+          "contextId": "2022-01-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "3030470"
+         },
+         {
+          "contextId": "2023-07-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "-4903129"
+         },
+         {
+          "contextId": "2022-07-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "1593338"
+         }
+        ]
+       },
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "TOPLAM KAPSAMLI GELİR (GİDER)"
+         },
+         {
+          "code": "en",
+          "value": "TOTAL COMPREHENSIVE INCOME (LOSS)"
+         }
+        ]
+       }
+      },
+      {
+       "preferredLabel": "terseLabel",
+       "name": "ComprehensiveIncomeAttributableToAbstract",
+       "abstract": "true",
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "Toplam Kapsamlı Gelirin Dağılımı"
+         },
+         {
+          "code": "en",
+          "value": "Total Comprehensive Income Attributable to"
+         }
+        ]
+       },
+       "ReportItem": [
+        {
+         "preferredLabel": "terseLabel",
+         "name": "ComprehensiveIncomeAttributableToNoncontrollingInterests",
+         "Values": {
+          "Value": {
+           "contextId": "2023-01-012023-09-30",
+           "currency": "TRY",
+           "rounding": "INF",
+           "value": "0"
+          }
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Kontrol Gücü Olmayan Paylar"
+           },
+           {
+            "code": "en",
+            "value": "Non-controlling Interests"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "terseLabel",
+         "name": "ComprehensiveIncomeAttributableToOwnersOfParent",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "57449770"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "3030470"
+           },
+           {
+            "contextId": "2023-07-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-4903129"
+           },
+           {
+            "contextId": "2022-07-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1593338"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Ana Ortaklık Payları"
+           },
+           {
+            "code": "en",
+            "value": "Owners of Parent"
+           }
+          ]
+         }
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "general_role_520003",
+   "content": {
+    "id": "general_role_520003",
+    "isMultiDimensional": "no",
+    "ContextList": {
+     "Context": [
+      {
+       "id": "2022-01-012022-09-30",
+       "key": "PREV",
+       "Period": {
+        "startDate": "2022-01-01",
+        "endDate": "2022-09-30"
+       }
+      },
+      {
+       "id": "2023-01-012023-09-30",
+       "key": "CURR",
+       "Period": {
+        "startDate": "2023-01-01",
+        "endDate": "2023-09-30"
+       }
+      }
+     ]
+    },
+    "ReportItem": {
+     "name": "StatementOfCashFlowsIndirectMethodAbstract",
+     "abstract": "true",
+     "langs": {
+      "lang": [
+       {
+        "code": "tr",
+        "value": "Nakit Akış Tablosu (Dolaylı Yöntem)"
+       },
+       {
+        "code": "en",
+        "value": "Statement of cash flows (Indirect Method)"
+       }
+      ]
+     },
+     "ReportItem": [
+      {
+       "preferredLabel": "alternativeTotalLabel",
+       "name": "CashFlowsFromUsedInOperatingActivities",
+       "Values": {
+        "Value": [
+         {
+          "contextId": "2023-01-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "2228969"
+         },
+         {
+          "contextId": "2022-01-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "5556599"
+         }
+        ]
+       },
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "İŞLETME FAALİYETLERİNDEN NAKİT AKIŞLARI"
+         },
+         {
+          "code": "en",
+          "value": "CASH FLOWS FROM (USED IN) OPERATING ACTIVITIES"
+         }
+        ]
+       },
+       "ReportItem": [
+        {
+         "preferredLabel": "terseLabel",
+         "name": "ProfitLossForCashFlowStatement",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "57449770"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "3110514"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Dönem Karı (Zararı)"
+           },
+           {
+            "code": "en",
+            "value": "Profit (Loss)"
+           }
+          ]
+         },
+         "ReportItem": {
+          "preferredLabel": "terseLabel",
+          "name": "ProfitLossFromContinuingOperationsForCashFlowStatement",
+          "Values": {
+           "Value": [
+            {
+             "contextId": "2023-01-012023-09-30",
+             "currency": "TRY",
+             "rounding": "INF",
+             "value": "57449770"
+            },
+            {
+             "contextId": "2022-01-012022-09-30",
+             "currency": "TRY",
+             "rounding": "INF",
+             "value": "3110514"
+            }
+           ]
+          },
+          "langs": {
+           "lang": [
+            {
+             "code": "tr",
+             "value": "Sürdürülen Faaliyetlerden Dönem Karı (Zararı)"
+            },
+            {
+             "code": "en",
+             "value": "Profit (Loss) from Continuing Operations"
+            }
+           ]
+          }
+         }
+        },
+        {
+         "preferredLabel": "alternativeTotalLabel",
+         "name": "AdjustmentsForReconcileProfitLoss",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-52253027"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2885192"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Dönem Net Karı (Zararı) Mutabakatı İle İlgili Düzeltmeler"
+           },
+           {
+            "code": "en",
+            "value": "Adjustments to Reconcile Profit (Loss)"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "name": "AdjustmentsForDepreciationAndAmortisationExpense",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "68548"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "73168"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Amortisman ve İtfa Gideri İle İlgili Düzeltmeler"
+             },
+             {
+              "code": "en",
+              "value": "Adjustments for depreciation and amortisation expense"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "terseLabel",
+           "name": "AdjustmentsForImpairmentLossReversalOfImpairmentLossRecognisedInProfitOrLoss",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "41527"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "39948"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Değer Düşüklüğü (İptali) İle İlgili Düzeltmeler"
+             },
+             {
+              "code": "en",
+              "value": "Adjustments for Impairment Loss (Reversal of Impairment Loss)"
+             }
+            ]
+           },
+           "ReportItem": {
+            "preferredLabel": "terseLabel",
+            "name": "AdjustmentsForImpairmentLossReversalOfImpairmentLossRecognisedInProfitOrLossTradeAndOtherReceivables",
+            "Values": {
+             "Value": [
+              {
+               "contextId": "2023-01-012023-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "41527"
+              },
+              {
+               "contextId": "2022-01-012022-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "39948"
+              }
+             ]
+            },
+            "langs": {
+             "lang": [
+              {
+               "code": "tr",
+               "value": "Alacaklarda Değer Düşüklüğü (İptali) ile İlgili Düzeltmeler"
+              },
+              {
+               "code": "en",
+               "value": "Adjustments for Impairement Loss (Reversal of Impairment Loss) of Receivables"
+              }
+             ]
+            }
+           }
+          },
+          {
+           "name": "AdjustmentsForProvisions",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "13912"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "71567"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Karşılıklar İle İlgili Düzeltmeler"
+             },
+             {
+              "code": "en",
+              "value": "Adjustments for provisions"
+             }
+            ]
+           },
+           "ReportItem": {
+            "name": "AdjustmentsForReversalOfProvisionsRelatedWithEmployeeBenefits",
+            "Values": {
+             "Value": [
+              {
+               "contextId": "2023-01-012023-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "13912"
+              },
+              {
+               "contextId": "2022-01-012022-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "71567"
+              }
+             ]
+            },
+            "langs": {
+             "lang": [
+              {
+               "code": "tr",
+               "value": "Çalışanlara Sağlanan Faydalara İlişkin Karşılıklar (İptali) ile İlgili Düzeltmeler"
+              },
+              {
+               "code": "en",
+               "value": "Adjustments for (Reversal of) Provisions Related with Employee Benefits"
+              }
+             ]
+            }
+           }
+          },
+          {
+           "preferredLabel": "terseLabel",
+           "name": "AdjustmentsForInterestIncomeAndExpenses",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "700845"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "-780876"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Faiz (Gelirleri) ve Giderleri İle İlgili Düzeltmeler"
+             },
+             {
+              "code": "en",
+              "value": "Adjustments for Interest (Income) Expenses"
+             }
+            ]
+           },
+           "ReportItem": [
+            {
+             "preferredLabel": "negatedLabel",
+             "name": "AdjustmentsForInterestIncome",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-01-012023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "7442866"
+               },
+               {
+                "contextId": "2022-01-012022-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "5032153"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Faiz Gelirleri ile İlgili Düzeltmeler"
+               },
+               {
+                "code": "en",
+                "value": "Adjustments for Interest Income"
+               }
+              ]
+             }
+            },
+            {
+             "name": "AdjustmentsForInterestExpense",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-01-012023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "8143711"
+               },
+               {
+                "contextId": "2022-01-012022-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "4251277"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Faiz Giderleri ile İlgili Düzeltmeler"
+               },
+               {
+                "code": "en",
+                "value": "Adjustments for interest expense"
+               }
+              ]
+             }
+            }
+           ]
+          },
+          {
+           "name": "AdjustmentsForFairValueGainsLosses",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "-69781080"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "1581462"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Gerçeğe Uygun Değer Kayıpları (Kazançları) İle İlgili Düzeltmeler"
+             },
+             {
+              "code": "en",
+              "value": "Adjustments for fair value losses (gains)"
+             }
+            ]
+           },
+           "ReportItem": [
+            {
+             "name": "AdjustmentsForFairValueLossesOrGainsOfInvestmentProperty",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-01-012023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "-65000000"
+               },
+               {
+                "contextId": "2022-01-012022-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "0"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Yatırım Amaçlı Gayrimenkullerin Gerçeğe Uygun Değer Kayıpları (Kazançları) ile İlgili Düzeltmeler"
+               },
+               {
+                "code": "en",
+                "value": "Adjustments for Fair Value Losses (Gains) of Investment Property"
+               }
+              ]
+             }
+            },
+            {
+             "name": "AdjustmentsForFairValueLossesOrGainsOfFinancialAssets",
+             "Values": {
+              "Value": [
+               {
+                "contextId": "2023-01-012023-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "-4781080"
+               },
+               {
+                "contextId": "2022-01-012022-09-30",
+                "currency": "TRY",
+                "rounding": "INF",
+                "value": "1581462"
+               }
+              ]
+             },
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Finansal Varlıkların Gerçeğe Uygun Değer Kayıpları (Kazançları) ile İlgili Düzeltmeler"
+               },
+               {
+                "code": "en",
+                "value": "Adjustments for Fair Value Losses (Gains) of Financial Assets"
+               }
+              ]
+             }
+            }
+           ]
+          },
+          {
+           "preferredLabel": "terseLabel",
+           "name": "AdjustmentsForIncomeTaxExpense",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "16703221"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "1899923"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Vergi (Geliri) Gideri İle İlgili Düzeltmeler"
+             },
+             {
+              "code": "en",
+              "value": "Adjustments for Tax (Income) Expenses"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "preferredLabel": "negatedTotalLabel",
+         "name": "IncreaseDecreaseInWorkingCapital",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-67693"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-967860"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "İşletme Sermayesinde Gerçekleşen Değişimler"
+           },
+           {
+            "code": "en",
+            "value": "Changes in Working Capital"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "name": "AdjustmentsForDecreaseIncreaseInOtherReceivablesRelatedWithOperations",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "-3054205"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "-1821543"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Faaliyetlerle İlgili Diğer Alacaklardaki Azalış (Artış) ile İlgili Düzeltmeler"
+             },
+             {
+              "code": "en",
+              "value": "Adjustments for Decrease (Increase) in Other Receivables Related with Operations"
+             }
+            ]
+           },
+           "ReportItem": {
+            "name": "DecreaseIncreaseInOtherUnrelatedPartyReceivablesRelatedWithOperations",
+            "Values": {
+             "Value": [
+              {
+               "contextId": "2023-01-012023-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "-3054205"
+              },
+              {
+               "contextId": "2022-01-012022-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "-1821543"
+              }
+             ]
+            },
+            "langs": {
+             "lang": [
+              {
+               "code": "tr",
+               "value": "İlişkili Olmayan Taraflardan Faaliyetlerle İlgili Diğer Alacaklardaki Azalış (Artış)"
+              },
+              {
+               "code": "en",
+               "value": "Decrease (Increase) in Other Unrelated Party Receivables Related with Operations"
+              }
+             ]
+            }
+           }
+          },
+          {
+           "name": "AdjustmentsForIncreaseDecreaseInTradeAccountPayable",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "-45798"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "20229"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Ticari Borçlardaki Artış (Azalış) ile İlgili Düzeltmeler"
+             },
+             {
+              "code": "en",
+              "value": "Adjustments for increase (decrease) in trade accounts payable"
+             }
+            ]
+           },
+           "ReportItem": {
+            "name": "IncreaseDecreaseInTradeAccountsPayablesToUnrelatedParties",
+            "Values": {
+             "Value": [
+              {
+               "contextId": "2023-01-012023-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "-45798"
+              },
+              {
+               "contextId": "2022-01-012022-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "20229"
+              }
+             ]
+            },
+            "langs": {
+             "lang": [
+              {
+               "code": "tr",
+               "value": "İlişkili Olmayan Taraflara Ticari Borçlardaki Artış (Azalış)"
+              },
+              {
+               "code": "en",
+               "value": "Increase (Decrease) in Trade Accounts Payables to Unrelated Parties"
+              }
+             ]
+            }
+           }
+          },
+          {
+           "preferredLabel": "terseLabel",
+           "name": "AdjustmentsForIncreaseDecreaseInEmployeeBenefitLiabilities",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "-45606"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "86895"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Çalışanlara Sağlanan Faydalar Kapsamında Borçlardaki Artış (Azalış)"
+             },
+             {
+              "code": "en",
+              "value": "Increase (Decrease) in Employee Benefit Liabilities"
+             }
+            ]
+           }
+          },
+          {
+           "name": "AdjustmentsForIncreaseDecreaseInOtherOperatingPayables",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "138340"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "56289"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Faaliyetler ile İlgili Diğer Borçlardaki Artış (Azalış) ile İlgili Düzeltmeler"
+             },
+             {
+              "code": "en",
+              "value": "Adjustments for increase (decrease) in other operating payables"
+             }
+            ]
+           },
+           "ReportItem": {
+            "name": "IncreaseDecreaseInOtherOperatingPayablesToUnrelatedParties",
+            "Values": {
+             "Value": [
+              {
+               "contextId": "2023-01-012023-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "138340"
+              },
+              {
+               "contextId": "2022-01-012022-09-30",
+               "currency": "TRY",
+               "rounding": "INF",
+               "value": "56289"
+              }
+             ]
+            },
+            "langs": {
+             "lang": [
+              {
+               "code": "tr",
+               "value": "İlişkili Olmayan Taraflara Faaliyetlerle İlgili Diğer Borçlardaki Artış (Azalış)"
+              },
+              {
+               "code": "en",
+               "value": "Increase (Decrease) in Other Operating Payables to Unrelated Parties"
+              }
+             ]
+            }
+           }
+          },
+          {
+           "preferredLabel": "verboseLabel",
+           "name": "AdjustmentsForIncreaseDecreaseInDeferredIncome",
+           "Values": {
+            "Value": [
+             {
+              "contextId": "2023-01-012023-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "3074962"
+             },
+             {
+              "contextId": "2022-01-012022-09-30",
+              "currency": "TRY",
+              "rounding": "INF",
+              "value": "2625990"
+             }
+            ]
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Ertelenmiş Gelirlerdeki (Müşteri Sözleşmelerinden Doğan Yükümlülüklerin Dışında Kalanlar) Artış (Azalış)"
+             },
+             {
+              "code": "en",
+              "value": "Increase (Decrease) in Deferred Income Other Than Contract Liabilities"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "preferredLabel": "alternativeTotalLabel",
+         "name": "CashFlowsFromUsedInOperations",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "5264436"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "6963566"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Faaliyetlerden Elde Edilen Nakit Akışları"
+           },
+           {
+            "code": "en",
+            "value": "Cash Flows from (used in) Operations"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "negatedLabel",
+         "name": "PaymentsRelatedWithProvisionsForEmployeeBenefits",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "794616"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "0"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Çalışanlara Sağlanan Faydalara İlişkin Karşılıklar Kapsamında Yapılan Ödemeler"
+           },
+           {
+            "code": "en",
+            "value": "Payments Related with Provisions for Employee Benefits"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "negatedTerseLabel",
+         "name": "IncomeTaxesPaidRefundClassifiedAsOperatingActivities",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2240851"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1406967"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Vergi İadeleri (Ödemeleri)"
+           },
+           {
+            "code": "en",
+            "value": "Income taxes refund (paid)"
+           }
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "preferredLabel": "alternativeTotalLabel",
+       "name": "CashFlowsFromUsedInInvestingActivities",
+       "Values": {
+        "Value": [
+         {
+          "contextId": "2023-01-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "8093181"
+         },
+         {
+          "contextId": "2022-01-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "-18010099"
+         }
+        ]
+       },
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "YATIRIM FAALİYETLERİNDEN KAYNAKLANAN NAKİT AKIŞLARI"
+         },
+         {
+          "code": "en",
+          "value": "CASH FLOWS FROM (USED IN) INVESTING ACTIVITIES"
+         }
+        ]
+       },
+       "ReportItem": [
+        {
+         "preferredLabel": "verboseLabel",
+         "name": "OtherCashReceiptsFromSalesOfEquityOrDebtInstrumentsOfOtherEntitiesClassifiedAsInvestingActivities",
+         "Values": {
+          "Value": {
+           "contextId": "2023-01-012023-09-30",
+           "currency": "TRY",
+           "rounding": "INF",
+           "value": "18697253"
+          }
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Başka İşletmelerin veya Fonların Paylarının veya Borçlanma Araçlarının Satılması Sonucu Elde Edilen Nakit Girişleri"
+           },
+           {
+            "code": "en",
+            "value": "Cash Receipts from Sales of Equity or Debt Instruments of Other Entities"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "negatedVerboseLabel",
+         "name": "OtherCashPaymentsToAcquireEquityOrDebtInstrumentsOfOtherEntitiesClassifiedAsInvestingActivities",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "11568567"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "18517663"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Başka İşletmelerin veya Fonların Paylarının veya Borçlanma Araçlarının Edinimi İçin Yapılan Nakit Çıkışları"
+           },
+           {
+            "code": "en",
+            "value": "Cash Payments to Acquire Equity or Debt Instruments of Other Entities"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "negatedTerseLabel",
+         "name": "PurchaseOfPropertyPlantEquipmentAndIntangibleAssetsClassifiedAsInvestingActivities",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "55627"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1780"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Maddi ve Maddi Olmayan Duran Varlıkların Alımından Kaynaklanan Nakit Çıkışları"
+           },
+           {
+            "code": "en",
+            "value": "Purchase of Property, Plant, Equipment and Intangible Assets"
+           }
+          ]
+         },
+         "ReportItem": {
+          "preferredLabel": "negatedTerseLabel",
+          "name": "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities",
+          "Values": {
+           "Value": [
+            {
+             "contextId": "2023-01-012023-09-30",
+             "currency": "TRY",
+             "rounding": "INF",
+             "value": "55627"
+            },
+            {
+             "contextId": "2022-01-012022-09-30",
+             "currency": "TRY",
+             "rounding": "INF",
+             "value": "1780"
+            }
+           ]
+          },
+          "langs": {
+           "lang": [
+            {
+             "code": "tr",
+             "value": "Maddi Olmayan Duran Varlık Alımından Kaynaklanan Nakit Çıkışları"
+            },
+            {
+             "code": "en",
+             "value": "Purchase of intangible assets"
+            }
+           ]
+          }
+         }
+        },
+        {
+         "preferredLabel": "terseLabel",
+         "name": "InterestReceivedClassifiedAsInvestingActivities",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1020122"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "509344"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Alınan Faiz"
+           },
+           {
+            "code": "en",
+            "value": "Interest received"
+           }
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "preferredLabel": "alternativeTotalLabel",
+       "name": "CashFlowsFromUsedInFinancingActivities",
+       "Values": {
+        "Value": [
+         {
+          "contextId": "2023-01-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "-1198781"
+         },
+         {
+          "contextId": "2022-01-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "-33628"
+         }
+        ]
+       },
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "FİNANSMAN FAALİYETLERİNDEN NAKİT AKIŞLARI"
+         },
+         {
+          "code": "en",
+          "value": "CASH FLOWS FROM (USED IN) FINANCING ACTIVITIES"
+         }
+        ]
+       },
+       "ReportItem": [
+        {
+         "preferredLabel": "terseLabel",
+         "name": "ProceedsFromBorrowingsClassifiedAsFinancingActivities",
+         "Values": {
+          "Value": {
+           "contextId": "2022-01-012022-09-30",
+           "currency": "TRY",
+           "rounding": "INF",
+           "value": "40637"
+          }
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Borçlanmadan Kaynaklanan Nakit Girişleri"
+           },
+           {
+            "code": "en",
+            "value": "Proceeds from borrowings"
+           }
+          ]
+         },
+         "ReportItem": {
+          "preferredLabel": "terseLabel",
+          "name": "ProceedsFromOtherFinancialBorrowingsClassifiedAsFinancingActivities",
+          "Values": {
+           "Value": {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "40637"
+           }
+          },
+          "langs": {
+           "lang": [
+            {
+             "code": "tr",
+             "value": "Diğer Finansal Borçlanmalardan Nakit Girişleri"
+            },
+            {
+             "code": "en",
+             "value": "Proceeds from Other Financial Borrowings"
+            }
+           ]
+          }
+         }
+        },
+        {
+         "preferredLabel": "negatedTerseLabel",
+         "name": "RepaymentsOfBorrowingsClassifiedAsFinancingActivities",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "28915"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "72749"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Borç Ödemelerine İlişkin Nakit Çıkışları"
+           },
+           {
+            "code": "en",
+            "value": "Repayments of borrowings"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "preferredLabel": "negatedTerseLabel",
+           "name": "LoanRepaymantsClassifiedAsFinancingActivities",
+           "Values": {
+            "Value": {
+             "contextId": "2022-01-012022-09-30",
+             "currency": "TRY",
+             "rounding": "INF",
+             "value": "72749"
+            }
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Kredi Geri Ödemelerine İlişkin Nakit Çıkışları"
+             },
+             {
+              "code": "en",
+              "value": "Loan Repayments"
+             }
+            ]
+           }
+          },
+          {
+           "preferredLabel": "negatedTerseLabel",
+           "name": "CashOutflowFromOtherFinancialLiabilitiesClassifiedAsFinancingActivities",
+           "Values": {
+            "Value": {
+             "contextId": "2023-01-012023-09-30",
+             "currency": "TRY",
+             "rounding": "INF",
+             "value": "28915"
+            }
+           },
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Diğer Finansal Borç Ödemelerinden Nakit Çıkışları"
+             },
+             {
+              "code": "en",
+              "value": "Cash Outflows from Other Financial Liabilities"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "preferredLabel": "negatedTerseLabel",
+         "name": "InterestPaidClassifiedAsFinancingActivities",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1169866"
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1516"
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Ödenen Faiz"
+           },
+           {
+            "code": "en",
+            "value": "Interest paid"
+           }
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "preferredLabel": "alternativeNetlLabel",
+       "name": "IncreaseDecreaseInCashAndCashEquivalentsBeforeEffectOfExchangeRateChanges",
+       "Values": {
+        "Value": [
+         {
+          "contextId": "2023-01-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "9123369"
+         },
+         {
+          "contextId": "2022-01-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "-12487128"
+         }
+        ]
+       },
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "YABANCI PARA ÇEVRİM FARKLARININ ETKİSİNDEN ÖNCE NAKİT VE NAKİT BENZERLERİNDEKİ NET ARTIŞ (AZALIŞ)"
+         },
+         {
+          "code": "en",
+          "value": "NET INCREASE (DECREASE) IN CASH AND CASH EQUIVALENTS BEFORE EFFECT OF EXCHANGE RATE CHANGES"
+         }
+        ]
+       }
+      },
+      {
+       "preferredLabel": "netLabel",
+       "name": "IncreaseDecreaseInCashAndCashEquivalents",
+       "Values": {
+        "Value": [
+         {
+          "contextId": "2023-01-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "9123369"
+         },
+         {
+          "contextId": "2022-01-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "-12487128"
+         }
+        ]
+       },
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "NAKİT VE NAKİT BENZERLERİNDEKİ NET ARTIŞ (AZALIŞ)"
+         },
+         {
+          "code": "en",
+          "value": "Net increase (decrease) in cash and cash equivalents"
+         }
+        ]
+       }
+      },
+      {
+       "preferredLabel": "periodStartLabel",
+       "name": "CashAndCashEquivalentsForCashFlowStatement",
+       "Values": {
+        "Value": [
+         {
+          "contextId": "2023-01-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "4015348"
+         },
+         {
+          "contextId": "2022-01-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "17812898"
+         }
+        ]
+       },
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "DÖNEM BAŞI NAKİT VE NAKİT BENZERLERİ"
+         },
+         {
+          "code": "en",
+          "value": "CASH AND CASH EQUIVALENTS AT THE BEGINNING OF THE PERIOD"
+         }
+        ]
+       }
+      },
+      {
+       "preferredLabel": "periodEndLabel",
+       "name": "CashAndCashEquivalentsForCashFlowStatement",
+       "Values": {
+        "Value": [
+         {
+          "contextId": "2023-01-012023-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "13138717"
+         },
+         {
+          "contextId": "2022-01-012022-09-30",
+          "currency": "TRY",
+          "rounding": "INF",
+          "value": "5325770"
+         }
+        ]
+       },
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "DÖNEM SONU NAKİT VE NAKİT BENZERLERİ"
+         },
+         {
+          "code": "en",
+          "value": "CASH AND CASH EQUIVALENTS AT THE END OF THE PERIOD"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "general_role_610000",
+   "content": {
+    "id": "general_role_610000",
+    "isMultiDimensional": "yes",
+    "ContextList": {
+     "Context": [
+      {
+       "id": "2022-01-012022-09-30",
+       "key": "PREV",
+       "Period": {
+        "startDate": "2022-01-01",
+        "endDate": "2022-09-30"
+       }
+      },
+      {
+       "id": "2023-01-012023-09-30",
+       "key": "CURR",
+       "Period": {
+        "startDate": "2023-01-01",
+        "endDate": "2023-09-30"
+       }
+      }
+     ]
+    },
+    "ReportItem": {
+     "name": "StatementOfChangesInEquityAbstract",
+     "abstract": "true",
+     "langs": {
+      "lang": [
+       {
+        "code": "tr",
+        "value": "Özkaynaklar Değişim Tablosu"
+       },
+       {
+        "code": "en",
+        "value": "Statement of changes in equity [abstract]"
+       }
+      ]
+     },
+     "ReportItem": [
+      {
+       "isHypercubeItem": "yes",
+       "name": "StatementOfChangesInEquityTable",
+       "abstract": "true",
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "Özkaynaklar Değişim Tablosu [table]"
+         },
+         {
+          "code": "en",
+          "value": "Statement of changes in equity [table]"
+         }
+        ]
+       },
+       "ReportItem": {
+        "isDimensionItem": "yes",
+        "name": "ComponentsOfEquityAxis",
+        "abstract": "true",
+        "langs": {
+         "lang": [
+          {
+           "code": "tr",
+           "value": "Özkaynak Unsurları [axis]"
+          },
+          {
+           "code": "en",
+           "value": "Components of equity [axis]"
+          }
+         ]
+        },
+        "ReportItem": {
+         "preferredLabel": "verboseLabel",
+         "name": "EquityMember",
+         "abstract": "true",
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Özkaynaklar"
+           },
+           {
+            "code": "en",
+            "value": "Equity"
+           }
+          ]
+         },
+         "ReportItem": [
+          {
+           "name": "EquityAttributableToOwnersOfParentMember",
+           "abstract": "true",
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Ana Ortaklığa Ait Özkaynaklar"
+             },
+             {
+              "code": "en",
+              "value": "Equity attributable to owners of parent [member]"
+             }
+            ]
+           },
+           "ReportItem": [
+            {
+             "preferredLabel": "verboseLabel",
+             "name": "IssuedCapitalMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Ödenmiş Sermaye"
+               },
+               {
+                "code": "en",
+                "value": "Issued Capital"
+               }
+              ]
+             }
+            },
+            {
+             "preferredLabel": "verboseLabel",
+             "name": "InflationAdjustmentsOnCapitalMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Sermaye Düzeltme Farkları"
+               },
+               {
+                "code": "en",
+                "value": "Inflation Adjustments on Capital"
+               }
+              ]
+             }
+            },
+            {
+             "name": "BalancingAccountForMergerCapitalMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Birleşme Denkleştirme Hesabı"
+               },
+               {
+                "code": "en",
+                "value": "Balancing Account for Merger Capital"
+               }
+              ]
+             }
+            },
+            {
+             "name": "AdditionalCapitalContributionOfShareholdersMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Pay Sahiplerinin İlave Sermaye Katkıları"
+               },
+               {
+                "code": "en",
+                "value": "Additional Capital Contribution of Shareholders"
+               }
+              ]
+             }
+            },
+            {
+             "name": "CapitalAdvanceMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Sermaye Avansı"
+               },
+               {
+                "code": "en",
+                "value": "Capital Advance"
+               }
+              ]
+             }
+            },
+            {
+             "preferredLabel": "verboseLabel",
+             "name": "TreasurySharesMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Geri Alınmış Paylar"
+               },
+               {
+                "code": "en",
+                "value": "Treasury Shares"
+               }
+              ]
+             }
+            },
+            {
+             "name": "CapitalAdjustmentsDueToCrossOwnershipMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Karşılıklı İştirak Sermaye Düzeltmesi"
+               },
+               {
+                "code": "en",
+                "value": "Capital Adjustments due to Cross-Ownership"
+               }
+              ]
+             }
+            },
+            {
+             "preferredLabel": "verboseLabel",
+             "name": "SharePremiumMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Pay İhraç Primleri / İskontoları"
+               },
+               {
+                "code": "en",
+                "value": "Share premiums or discounts"
+               }
+              ]
+             }
+            },
+            {
+             "name": "EffectsOfCombinationsOfEntitiesOrBusinessesUnderCommonControlMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Ortak Kontrole Tabi Teşebbüs veya İşletmeleri İçeren Birleşmelerin Etkisi"
+               },
+               {
+                "code": "en",
+                "value": "Effects of Combinations of Entities or Businesses Under Common Control"
+               }
+              ]
+             }
+            },
+            {
+             "name": "PutOptionRevaluationFundRelatedWithNoncontrollingInterestsMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Kontrol Gücü Olmayan Paylara İlişkin Satış Opsiyon Değerleme Fonu"
+               },
+               {
+                "code": "en",
+                "value": "Put Option Revaluation Fund Related with Non-controlling Interests"
+               }
+              ]
+             }
+            },
+            {
+             "name": "ShareBasedPaymentsMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Pay Bazlı Ödemeler"
+               },
+               {
+                "code": "en",
+                "value": "Share Based Payments"
+               }
+              ]
+             }
+            },
+            {
+             "name": "OtherAccumulatedComprehensiveIncomeThatWillNotBeReclassifiedInProfitOrLossMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Kar veya Zararda Yeniden Sınıflandırılmayacak Birikmiş Diğer Kapsamlı Gelirler veya Giderler"
+               },
+               {
+                "code": "en",
+                "value": "Other Accumulated Comprehensive Income That Will Not Be Reclassified In Profit Or Loss"
+               }
+              ]
+             },
+             "ReportItem": [
+              {
+               "name": "AccumulatedGainsLossesFromInvestmentsInEquityInstrumentsMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Özkaynağa Dayalı Finansal Araçlara Yatırımlardan Kaynaklanan Kazançlar (Kayıplar)"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Accumulated Gains (Losses) from Investments in Equity Instruments"
+                 }
+                ]
+               }
+              },
+              {
+               "name": "GainsOrLossesOnRevaluationAndRemeasurementMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Yeniden Değerleme ve Ölçüm Kazanç / Kayıpları"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Gains/Losses on Revaluation and Remeasurement [member]"
+                 }
+                ]
+               },
+               "ReportItem": [
+                {
+                 "preferredLabel": "terseLabel",
+                 "name": "AccumulatedIncreasesDecreasesOnRevaluationOfPropertyPlantAndEquipmentMember",
+                 "abstract": "true",
+                 "langs": {
+                  "lang": [
+                   {
+                    "code": "tr",
+                    "value": "Maddi Duran Varlık Yeniden Değerleme Artışları/Azalışları"
+                   },
+                   {
+                    "code": "en",
+                    "value": "Increases (Decreases) on Revaluation of Property, Plant and Equipment"
+                   }
+                  ]
+                 }
+                },
+                {
+                 "preferredLabel": "terseLabel",
+                 "name": "AccumulatedIncreasesOrDecreasesOnRevaluationOfIntangibleAssetsMember",
+                 "abstract": "true",
+                 "langs": {
+                  "lang": [
+                   {
+                    "code": "tr",
+                    "value": "Maddi Olmayan Duran Varlık Yeniden Değerleme Artışları/Azalışları"
+                   },
+                   {
+                    "code": "en",
+                    "value": "Increases (Decreases) on Revaluation of Intangible Assets"
+                   }
+                  ]
+                 }
+                },
+                {
+                 "preferredLabel": "terseLabel",
+                 "name": "AccumulatedIncreasesOrDecreasesOnRevaluationOfRightOfUseAssetsMember",
+                 "abstract": "true",
+                 "langs": {
+                  "lang": [
+                   {
+                    "code": "tr",
+                    "value": "Kullanım Hakkı Varlıkları Yeniden Değerleme Artışları/Azalışları"
+                   },
+                   {
+                    "code": "en",
+                    "value": "Increases (Decreases) on Revaluation of Right-of-use Assets"
+                   }
+                  ]
+                 }
+                },
+                {
+                 "preferredLabel": "terseLabel",
+                 "name": "AccumulatedGainsLossesOnRemeasurementsOfDefinedBenefitPlansMember",
+                 "abstract": "true",
+                 "langs": {
+                  "lang": [
+                   {
+                    "code": "tr",
+                    "value": "Tanımlanmış Fayda Planları Yeniden Ölçüm Kazançları/Kayıpları"
+                   },
+                   {
+                    "code": "en",
+                    "value": "Gains (Losses) on Remeasurements of Defined Benefit Plans"
+                   }
+                  ]
+                 }
+                },
+                {
+                 "preferredLabel": "terseLabel",
+                 "name": "OtherAccumulatedRevaluationOrRemeasurementGainsOrLossesMember",
+                 "abstract": "true",
+                 "langs": {
+                  "lang": [
+                   {
+                    "code": "tr",
+                    "value": "Diğer Yeniden Değerleme ve Ölçüm Kazanç/Kayıpları"
+                   },
+                   {
+                    "code": "en",
+                    "value": "Other Revaluation Increases (Decreases)"
+                   }
+                  ]
+                 }
+                }
+               ]
+              },
+              {
+               "preferredLabel": "terseLabel",
+               "name": "AccumulatedGainsOrLossesDueToChangeInFairValueOfFinancialLiabilityAttributableToChangeInCreditRiskOfLiabilityMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Kredi Riskindeki Değişikliğe Bağlı Kazançlar (Kayıplar)"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Gains (Losses) Due to Change in Fair Value of Financial Liability Attributable to Change in Credit Risk of Liability"
+                 }
+                ]
+               }
+              },
+              {
+               "preferredLabel": "terseLabel",
+               "name": "AccumulatedGainsLossesOnHedgingInstrumentsThatHedgeInvestmentsInEquityInstrumentsMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Özkaynağa Dayalı Finansal Araçlara Yapılan Yatırımlara İlişkin Finansal Riskten Korunma Kazançları (Kayıpları)"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Gains (Losses) on Hedging Instruments that Hedge Investments in Equity Instruments"
+                 }
+                ]
+               }
+              },
+              {
+               "name": "ShareOfOtherComprehensiveIncomeOfAssociatesAndJointVenturesAccountedForUsingEquityMethodThatWillNotBeReclassifiedToProfitOrLossMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Özkaynak Yöntemi ile Değerlenen Yatırımların Diğer Kapsamlı Gelirinden Kar/Zararda Sınıflandırılmayacak Paylar"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Share Of Other Comprehensive İncome Of Associates And Joint Ventures Accounted for Using Equity Method that will not be Reclassified to Profit or Loss"
+                 }
+                ]
+               }
+              },
+              {
+               "preferredLabel": "terseLabel",
+               "name": "ReserveOfExchangeDifferencesOnTranslationThatWillNotBeReclassifiedtoProfitLossMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Yabancı Para Çevrim Farkları"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Exchange Differences on Translation"
+                 }
+                ]
+               }
+              },
+              {
+               "name": "OtherReservesOfGainsLossesMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Diğer Kazanç / Kayıplar"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Other Reserves Of Other Gains (Losses)"
+                 }
+                ]
+               }
+              }
+             ]
+            },
+            {
+             "name": "OtherAccumulatedComprehensiveIncomeThatWillBeReclassifiedInProfitOrLossMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Kar veya Zararda Yeniden Sınıflandırılacak Birikmiş Diğer Kapsamlı Gelirler veya Giderler"
+               },
+               {
+                "code": "en",
+                "value": "Other Accumulated Comprehensive Income That Will Be Reclassified In Profit Or Loss"
+               }
+              ]
+             },
+             "ReportItem": [
+              {
+               "preferredLabel": "terseLabel",
+               "name": "ReserveOfExchangeDifferencesOnTranslationThatWillBeReclassifiedInProfitLossMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Yabancı Para Çevrim Farkları"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Exchange Differences on Translation"
+                 }
+                ]
+               }
+              },
+              {
+               "name": "ReserveOfGainsOrLossesOnHedgeMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Riskten Korunma Kazanç / Kayıpları"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Reserve Of Gains or Losses on Hedge"
+                 }
+                ]
+               },
+               "ReportItem": [
+                {
+                 "preferredLabel": "terseLabel",
+                 "name": "AccumulatedGainsOrLossesOnCashFlowHedgesMember",
+                 "abstract": "true",
+                 "langs": {
+                  "lang": [
+                   {
+                    "code": "tr",
+                    "value": "Nakit Akış Riskinden Korunma Kazançları (Kayıpları)"
+                   },
+                   {
+                    "code": "en",
+                    "value": "Cash Flow Hedges"
+                   }
+                  ]
+                 }
+                },
+                {
+                 "preferredLabel": "terseLabel",
+                 "name": "AccumulatedGainsOrLossesOnHedgesOfNetInvestmentInForeignOperationsMember",
+                 "abstract": "true",
+                 "langs": {
+                  "lang": [
+                   {
+                    "code": "tr",
+                    "value": "Yurtdışındaki İşletmeye İlişkin Yatırım Riskinden Korunma Kazançları (Kayıpları)"
+                   },
+                   {
+                    "code": "en",
+                    "value": "Gains or Losses on Hedges of Net Investment in Foreign Operations"
+                   }
+                  ]
+                 }
+                },
+                {
+                 "preferredLabel": "terseLabel",
+                 "name": "OtherAccumulatedGainsOrLossesOnHedgeMember",
+                 "abstract": "true",
+                 "langs": {
+                  "lang": [
+                   {
+                    "code": "tr",
+                    "value": "Diğer Riskten Korunma Kazançları (Kayıpları)"
+                   },
+                   {
+                    "code": "en",
+                    "value": "Other Gains or Losses on Hedge"
+                   }
+                  ]
+                 }
+                }
+               ]
+              },
+              {
+               "preferredLabel": "terseLabel",
+               "name": "AccumulatedGainsOrLossesOnRevaluationAndReclassificationThatWillBeReclassifiedToProfitLossMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Yeniden Değerleme ve Sınıflandırma Kazanç / Kayıpları"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Gains (Losses) on Revaluation and Reclassification"
+                 }
+                ]
+               },
+               "ReportItem": [
+                {
+                 "preferredLabel": "terseLabel",
+                 "name": "AccumulatedGainsAndLossesOnRemeasuringAndOrReclassificationOnAvailableForSaleFinancialAssetsMember",
+                 "abstract": "true",
+                 "langs": {
+                  "lang": [
+                   {
+                    "code": "tr",
+                    "value": "Satılmaya Hazır Finansal Varlıkların Yeniden Değerleme ve/veya Sınıflandırma Kazançları (Kayıpları)"
+                   },
+                   {
+                    "code": "en",
+                    "value": "Gains (Losses) on Remeasuring and/or Reclassification of Available-for-sale Financial Assets"
+                   }
+                  ]
+                 }
+                },
+                {
+                 "preferredLabel": "terseLabel",
+                 "name": "AccumulatedGainsLossesFromFinancialAssetsMeasuredAtFairValueThroughOtherComprehensiveIncomeMember",
+                 "abstract": "true",
+                 "langs": {
+                  "lang": [
+                   {
+                    "code": "tr",
+                    "value": "Gerçeğe Uygun Değer Farkı Diğer Kapsamlı Gelire Yansıtılan Finansal Varlıklardan Kazançlar (Kayıplar)"
+                   },
+                   {
+                    "code": "en",
+                    "value": "Gains (Losses) from Financial Assets Measured at Fair Value through Other Comprehensive Income"
+                   }
+                  ]
+                 }
+                },
+                {
+                 "preferredLabel": "terseLabel",
+                 "name": "ReserveOfOtherRemeasuringOrReclassificationAdjustmentsMember",
+                 "abstract": "true",
+                 "langs": {
+                  "lang": [
+                   {
+                    "code": "tr",
+                    "value": "Diğer Yeniden Değerleme ve Sınıflandırma Kazanç/Kayıpları"
+                   },
+                   {
+                    "code": "en",
+                    "value": "Reserve of Other Remeasuring or Reclassification Adjustments"
+                   }
+                  ]
+                 }
+                }
+               ]
+              },
+              {
+               "preferredLabel": "terseLabel",
+               "name": "AccumulatedChangeInValueOfTimeValueOfOptionsMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Opsiyonların Zaman Değerindeki Değişiklikler"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Change in Value of Time Value of Options"
+                 }
+                ]
+               }
+              },
+              {
+               "preferredLabel": "terseLabel",
+               "name": "AccumulatedChangeInValueOfForwardElementsOfForwardContractsMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Forward Sözleşmesinin Forward Bileşeninin Değerindeki Değişiklikler"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Change in Value of Forward Elements of Forward Contracts"
+                 }
+                ]
+               }
+              },
+              {
+               "preferredLabel": "terseLabel",
+               "name": "AccumulatedChangeInValueOfForeignCurrencyBasisSpreadsMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Yabancı Para Alım Satım Marjlarındaki Değişiklikler"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Change in Value of Foreign Currency Basis Spreads"
+                 }
+                ]
+               }
+              },
+              {
+               "preferredLabel": "terseLabel",
+               "name": "AccumulatedShareOfOtherComprehensiveIncomeOfAssociatesAndJointVenturesAccountedForUsingEquityMethodThatWillBeReclassifiedToProfitLossMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Özkaynak Yöntemi ile Değerlenen Yatırımların Diğer Kapsamlı Gelirinden Kar/Zararda Sınıflandırılacak Paylar"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Share of Other Comprehensive Income of Associates and Joint Ventures Accounted for Using Equity Method that will be Reclassified to Profit or Loss"
+                 }
+                ]
+               }
+              },
+              {
+               "preferredLabel": "terseLabel",
+               "name": "OtherAccumulatedGainsLossesThatWillBeReclassifiedToProfitOrLossMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Diğer Kazanç / Kayıplar"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Other Gains (Losses)"
+                 }
+                ]
+               }
+              }
+             ]
+            },
+            {
+             "name": "RestrictedReservesAppropriatedFromProfitsMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Kardan Ayrılan Kısıtlanmış Yedekler"
+               },
+               {
+                "code": "en",
+                "value": "Restricted Reserves Appropriated From Profits [member]"
+               }
+              ]
+             }
+            },
+            {
+             "name": "OtherEquityInterestMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Diğer Özkaynak Payları"
+               },
+               {
+                "code": "en",
+                "value": "Other equity interest [member]"
+               }
+              ]
+             }
+            },
+            {
+             "name": "OtherReservesMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Diğer Yedekler"
+               },
+               {
+                "code": "en",
+                "value": "Other reserves [member]"
+               }
+              ]
+             }
+            },
+            {
+             "name": "AdvanceDividendPaymentsNetMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Ödenen Kar Payı Avansları (Net)"
+               },
+               {
+                "code": "en",
+                "value": "Advance Dividend Payments (Net)"
+               }
+              ]
+             }
+            },
+            {
+             "preferredLabel": "terseLabel",
+             "name": "RetainedEarningsMember",
+             "abstract": "true",
+             "langs": {
+              "lang": [
+               {
+                "code": "tr",
+                "value": "Birikmiş Karlar"
+               },
+               {
+                "code": "en",
+                "value": "Retained Earnings"
+               }
+              ]
+             },
+             "ReportItem": [
+              {
+               "name": "PriorYearsProfitsLossesMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Geçmiş Yıllar Kar / Zararları"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Prior Years' Profits or Losses"
+                 }
+                ]
+               }
+              },
+              {
+               "preferredLabel": "netLabel",
+               "name": "ProfitOrLossMember",
+               "abstract": "true",
+               "langs": {
+                "lang": [
+                 {
+                  "code": "tr",
+                  "value": "Net Dönem Karı Zararı"
+                 },
+                 {
+                  "code": "en",
+                  "value": "Net Profit or Loss"
+                 }
+                ]
+               }
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "name": "NoncontrollingInterestsMember",
+           "abstract": "true",
+           "langs": {
+            "lang": [
+             {
+              "code": "tr",
+              "value": "Kontrol Gücü Olmayan Paylar"
+             },
+             {
+              "code": "en",
+              "value": "Non-controlling interests [member]"
+             }
+            ]
+           }
+          }
+         ]
+        }
+       }
+      },
+      {
+       "isLineItem": "yes",
+       "name": "StatementOfChangesInEquityLineItems",
+       "abstract": "true",
+       "langs": {
+        "lang": [
+         {
+          "code": "tr",
+          "value": "Özkaynaklar Değişim Tablosu"
+         },
+         {
+          "code": "en",
+          "value": "Statement of changes in equity [line items]"
+         }
+        ]
+       },
+       "ReportItem": [
+        {
+         "preferredLabel": "periodStartLabel",
+         "name": "Equity",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "25382175",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "IssuedCapitalMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1934762",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "SharePremiumMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2912346",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "AccumulatedIncreasesDecreasesOnRevaluationOfPropertyPlantAndEquipmentMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-141714",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "AccumulatedGainsLossesOnRemeasurementsOfDefinedBenefitPlansMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1912819",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "RestrictedReservesAppropriatedFromProfitsMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-917150",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "PriorYearsProfitsLossesMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "27171079",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "ProfitOrLossMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "58254317",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "EquityMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "25382175",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "IssuedCapitalMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1934762",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "SharePremiumMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "3096432",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "AccumulatedIncreasesDecreasesOnRevaluationOfPropertyPlantAndEquipmentMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-218625",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "AccumulatedGainsLossesOnRemeasurementsOfDefinedBenefitPlansMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2491839",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "RestrictedReservesAppropriatedFromProfitsMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "25674909",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "PriorYearsProfitsLossesMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "57137368",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "ProfitOrLossMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "115498860",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "EquityMember"
+             }
+            }
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Dönem Başı Bakiyeler"
+           },
+           {
+            "code": "en",
+            "value": "Equity at beginning of period"
+           }
+          ]
+         }
+        },
+        {
+         "name": "Transfers",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "579020",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "RestrictedReservesAppropriatedFromProfitsMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "26592059",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "PriorYearsProfitsLossesMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-27171079",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "ProfitOrLossMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "218625",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "AccumulatedGainsLossesOnRemeasurementsOfDefinedBenefitPlansMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "56918743",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "PriorYearsProfitsLossesMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-57137368",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "ProfitOrLossMember"
+             }
+            }
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Transferler"
+           },
+           {
+            "code": "en",
+            "value": "Transfers"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "terseLabel",
+         "name": "ComprehensiveIncome",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-80044",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "AccumulatedGainsLossesOnRemeasurementsOfDefinedBenefitPlansMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "3110514",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "ProfitOrLossMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "3030470",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "EquityMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "57449770",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "ProfitOrLossMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "57449770",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "EquityMember"
+             }
+            }
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Toplam Kapsamlı Gelir (Gider)"
+           },
+           {
+            "code": "en",
+            "value": "Total Comprehensive Income (Loss)"
+           }
+          ]
+         }
+        },
+        {
+         "preferredLabel": "periodEndLabel",
+         "name": "Equity",
+         "Values": {
+          "Value": [
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "25382175",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "IssuedCapitalMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1934762",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "SharePremiumMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2912346",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "AccumulatedIncreasesDecreasesOnRevaluationOfPropertyPlantAndEquipmentMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "-221758",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "AccumulatedGainsLossesOnRemeasurementsOfDefinedBenefitPlansMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2491839",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "RestrictedReservesAppropriatedFromProfitsMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "25674909",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "PriorYearsProfitsLossesMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "3110514",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "ProfitOrLossMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "61284787",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "EquityAttributableToOwnersOfParentMember"
+             }
+            }
+           },
+           {
+            "contextId": "2022-01-012022-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "61284787",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "EquityMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "25382175",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "IssuedCapitalMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "1934762",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "SharePremiumMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "3096432",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "AccumulatedIncreasesDecreasesOnRevaluationOfPropertyPlantAndEquipmentMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "0",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "AccumulatedGainsLossesOnRemeasurementsOfDefinedBenefitPlansMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "2491839",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "RestrictedReservesAppropriatedFromProfitsMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "82593652",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "PriorYearsProfitsLossesMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "57449770",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "ProfitOrLossMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "172948630",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "EquityAttributableToOwnersOfParentMember"
+             }
+            }
+           },
+           {
+            "contextId": "2023-01-012023-09-30",
+            "currency": "TRY",
+            "rounding": "INF",
+            "value": "172948630",
+            "Measures": {
+             "Measure": {
+              "measureName": "ComponentsOfEquityAxis",
+              "measureValueName": "EquityMember"
+             }
+            }
+           }
+          ]
+         },
+         "langs": {
+          "lang": [
+           {
+            "code": "tr",
+            "value": "Dönem Sonu Bakiyeler"
+           },
+           {
+            "code": "en",
+            "value": "Equity at end of period"
+           }
+          ]
+         }
+        }
+       ]
+      }
+     ]
+    }
+   }
+  }
+ ]
+}
