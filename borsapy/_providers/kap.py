@@ -1,6 +1,6 @@
 """KAP (Kamuyu Aydınlatma Platformu) provider for disclosures and calendar."""
 
-import io
+import json
 import re
 import time
 from datetime import datetime, timedelta
@@ -9,6 +9,65 @@ import pandas as pd
 
 from borsapy._providers.base import BaseProvider
 from borsapy.exceptions import APIError
+
+# Next.js SSR flight data embeds the BIST company list as pushed chunks:
+#   self.__next_f.push([1,"..."])
+# Each chunk is a JSON string literal that must be unescaped before parsing.
+_NEXT_F_PUSH_RE = re.compile(
+    r'self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)',
+    re.DOTALL,
+)
+
+# Member blocks live inside the decoded payload with normal quotes.
+# Only blocks that carry a ``stockCode`` field are company records; raw
+# ``mkkMemberOid`` blocks without a stock code are other MKK members.
+_MEMBER_BLOCK_RE = re.compile(
+    r'\{"mkkMemberOid":"([^"]+)","kapMemberTitle":"([^"]*)",'
+    r'"relatedMemberTitle":(?:"[^"]*"|null),"stockCode":"([^"]+)"'
+    r'(?:,"cityName":(?:"([^"]*)"|null))?',
+)
+
+
+def _extract_next_f_payload(html: str) -> str:
+    """Collect and unescape all ``__next_f.push`` chunks in document order."""
+    chunks = _NEXT_F_PUSH_RE.findall(html)
+    if not chunks:
+        raise RuntimeError(
+            "KAP SSR schema changed: no __next_f.push chunks found in page"
+        )
+    return "".join(json.loads(chunk) for chunk in chunks)
+
+
+def _decode_member_blocks(html: str) -> list[dict]:
+    """Decode BIST company member blocks from the SSR page HTML.
+
+    Returns records shaped as ``{"oid", "name", "tickers", "city"}``. Only
+    blocks that contain a ``stockCode`` field count as company records.
+    """
+    payload = _extract_next_f_payload(html)
+    matches = _MEMBER_BLOCK_RE.findall(payload)
+    if not matches:
+        raise RuntimeError(
+            "KAP SSR schema changed: no company member blocks found in payload"
+        )
+
+    records: list[dict] = []
+    seen_oids: set[str] = set()
+    for oid, name, codes, city in matches:
+        if oid in seen_oids:
+            # Deterministic: first record wins (duplicates absent in fixture).
+            continue
+        seen_oids.add(oid)
+        tickers = [code.strip() for code in codes.split(",") if code.strip()]
+        records.append(
+            {
+                "oid": oid,
+                "name": name,
+                "tickers": tickers,
+                "city": city or "",
+            }
+        )
+    return records
 
 
 class KAPProvider(BaseProvider):
@@ -25,7 +84,6 @@ class KAPProvider(BaseProvider):
     - Expected disclosure calendar (beklenen bildirimler)
     """
 
-    EXCEL_URL = "https://www.kap.org.tr/tr/api/company/generic/excel/IGS/A"
     BIST_COMPANIES_URL = "https://www.kap.org.tr/tr/bist-sirketler"
     DISCLOSURE_URL = "https://www.kap.org.tr/tr/bildirim-sorgu-sonuc"
     CALENDAR_API_URL = "https://kap.org.tr/tr/api/expected-disclosure-inquiry/company"
@@ -59,56 +117,33 @@ class KAPProvider(BaseProvider):
             return self._company_cache
 
         try:
-            headers = {
-                "Accept": "*/*",
-                "Accept-Language": "tr",
-                "User-Agent": self.DEFAULT_HEADERS["User-Agent"],
-                "Referer": "https://www.kap.org.tr/tr/bist-sirketler",
-            }
-
-            response = self._client.get(self.EXCEL_URL, headers=headers)
+            response = self._client.get(self.BIST_COMPANIES_URL, timeout=20)
             response.raise_for_status()
-
-            # Read Excel data
-            df = pd.read_excel(io.BytesIO(response.content))
-
-            companies = []
-            for _, row in df.iterrows():
-                if len(row) >= 3:
-                    ticker_field = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
-                    name = str(row.iloc[1]).strip() if pd.notna(row.iloc[1]) else ""
-                    city = str(row.iloc[2]).strip() if pd.notna(row.iloc[2]) else ""
-
-                    # Skip header or empty rows
-                    if ticker_field and name and ticker_field not in ("BIST KODU", "Kod"):
-                        # Handle multiple tickers (e.g., "GARAN, TGB")
-                        if "," in ticker_field:
-                            tickers = [t.strip() for t in ticker_field.split(",")]
-                            for ticker in tickers:
-                                if ticker:
-                                    companies.append(
-                                        {
-                                            "ticker": ticker,
-                                            "name": name,
-                                            "city": city,
-                                        }
-                                    )
-                        else:
-                            companies.append(
-                                {
-                                    "ticker": ticker_field,
-                                    "name": name,
-                                    "city": city,
-                                }
-                            )
-
-            result = pd.DataFrame(companies)
-            self._company_cache = result
-            self._cache_time = current_time
-            return result
-
         except Exception as e:
             raise APIError(f"Failed to fetch company list: {e}") from e
+
+        records = _decode_member_blocks(response.text)
+
+        rows = []
+        for record in records:
+            for ticker in record["tickers"]:
+                rows.append(
+                    {
+                        "ticker": ticker,
+                        "name": record["name"],
+                        "city": record["city"],
+                    }
+                )
+
+        if not rows:
+            raise RuntimeError(
+                "KAP company decode produced no rows; refusing empty company list"
+            )
+
+        result = pd.DataFrame(rows, columns=["ticker", "name", "city"])
+        self._company_cache = result
+        self._cache_time = current_time
+        return result
 
     def search(self, query: str) -> pd.DataFrame:
         """
@@ -188,37 +223,22 @@ class KAPProvider(BaseProvider):
         ):
             return self._oid_map.get(symbol)
 
-        # Fetch BIST companies list from KAP
+        # Fetch BIST companies list from KAP. Only network errors are swallowed
+        # (frozen behaviour); parse errors must surface loudly.
         try:
             response = self._client.get(self.BIST_COMPANIES_URL, timeout=20)
             response.raise_for_status()
-
-            # Parse mkkMemberOid and stockCode pairs from Next.js data
-            # Format: \"mkkMemberOid\":\"xxx\",\"kapMemberTitle\":\"...\",
-            #         \"relatedMemberTitle\":\"...\",\"stockCode\":\"THYAO\",...
-            # Note: stockCode may contain multiple codes like "GARAN, TGB"
-            pattern = (
-                r'\\"mkkMemberOid\\":\\"([^\\"]+)\\",'
-                r'\\"kapMemberTitle\\":\\"[^\\"]+\\",'
-                r'\\"relatedMemberTitle\\":\\"[^\\"]*\\",'
-                r'\\"stockCode\\":\\"([^\\"]+)\\"'
-            )
-            matches = re.findall(pattern, response.text)
-
-            # Build mapping: stockCode -> mkkMemberOid
-            # Handle multiple codes per company (e.g., "GARAN, TGB")
-            self._oid_map = {}
-            for oid, codes_str in matches:
-                for code in codes_str.split(","):
-                    code = code.strip()
-                    if code:
-                        self._oid_map[code] = oid
-
-            self._oid_cache_time = current_time
-            return self._oid_map.get(symbol)
-
         except Exception:
             return None
+
+        oid_map: dict[str, str] = {}
+        for record in _decode_member_blocks(response.text):
+            for ticker in record["tickers"]:
+                oid_map[ticker] = record["oid"]
+
+        self._oid_map = oid_map
+        self._oid_cache_time = current_time
+        return oid_map.get(symbol)
 
     def get_disclosures(self, symbol: str, limit: int = 20) -> pd.DataFrame:
         """
