@@ -1593,6 +1593,126 @@ class IsYatirimProvider(BaseProvider):
             },
         }
 
+    @staticmethod
+    def _parse_absolute_figures(html_text: str) -> dict[str, Any]:
+        """Parse the embedded "Mutlak Rakamlar" multi-year figures table.
+
+        Pure/offline: no network access, no date parsing and no rounding.
+        The year labels are carried by the ``ddlMutlakRakamlarYil``
+        ``<select>`` that precedes the table (the ``<th>`` cells hold no
+        years); the row order maps one-to-one onto the option order.  Values
+        are published in mn TL and are returned as-is, without any unit
+        conversion.
+        """
+        marker = 'data-csvname="mutlakrakamlar"'
+        marker_index = html_text.find(marker)
+        if marker_index == -1:
+            raise RuntimeError("mutlakrakamlar tablosu yok (schema)")
+
+        prefix = html_text[:marker_index]
+        select_match = re.search(
+            r"<select\b[^>]*ddlMutlakRakamlarYil[^>]*>(.*?)</select>",
+            prefix,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if select_match is None:
+            raise RuntimeError("mutlakrakamlar yıl select'i yok (schema)")
+
+        option_matches = re.findall(
+            r"<option\b([^>]*)>(.*?)</option>",
+            select_match.group(1),
+            re.IGNORECASE | re.DOTALL,
+        )
+        if not option_matches:
+            raise RuntimeError("mutlakrakamlar yıl select'i yok (schema)")
+
+        years: list[int] = []
+        estimate_year: int | None = None
+        selected_count = 0
+        for attrs, option_body in option_matches:
+            label = IsYatirimProvider._strip_cell(option_body)
+            if re.fullmatch(r"20\d\d", label) is None:
+                raise RuntimeError(f"yıl etiketi 4 hane değil: '{label}'")
+            year = int(label)
+            years.append(year)
+            if re.search(r"\bselected\b", attrs, re.IGNORECASE):
+                selected_count += 1
+                estimate_year = year
+        if selected_count > 1:
+            raise RuntimeError("birden fazla selected option")
+
+        table_end_match = re.compile(r"</table>", re.IGNORECASE).search(
+            html_text, marker_index
+        )
+        if table_end_match is None:
+            raise RuntimeError("mutlakrakamlar tablosu yok (schema)")
+
+        table_slice = html_text[marker_index : table_end_match.start()]
+        rows: list[tuple[str, list[str]]] = []
+        for row_body in re.findall(
+            r"<tr\b[^>]*>(.*?)</tr>", table_slice, re.IGNORECASE | re.DOTALL
+        ):
+            cells = re.findall(
+                r"<td\b[^>]*>(.*?)</td>", row_body, re.IGNORECASE | re.DOTALL
+            )
+            if len(cells) != 5:
+                continue
+            row_symbol = IsYatirimProvider._strip_cell(cells[0])
+            if re.fullmatch(r"[A-Za-z]+", row_symbol) is None:
+                continue
+            rows.append((row_symbol, cells))
+
+        if len(rows) != len(years):
+            raise RuntimeError(
+                f"satır({len(rows)}) yıl({len(years)}) sayısı eşit değil"
+            )
+
+        symbol = rows[0][0]
+        parsed_rows: list[dict[str, Any]] = []
+        missing: list[str] = []
+        for index, ((_, cells), year) in enumerate(zip(rows, years, strict=True)):
+            kind_text = IsYatirimProvider._strip_cell(cells[4])
+            if kind_text == "Tahmin":
+                kind = "tahmin"
+            elif kind_text == "Açıklanan":
+                kind = "aciklanan"
+            else:
+                raise RuntimeError(
+                    f"bilinmeyen Tahmin/Açıklanan değeri: '{kind_text}'"
+                )
+
+            sales = _parse_tr_number(IsYatirimProvider._strip_cell(cells[1]))
+            net_profit = _parse_tr_number(IsYatirimProvider._strip_cell(cells[2]))
+            ebitda = _parse_tr_number(IsYatirimProvider._strip_cell(cells[3]))
+
+            parsed_rows.append(
+                {
+                    "year": year,
+                    "kind": kind,
+                    "sales": sales,
+                    "net_profit": net_profit,
+                    "ebitda": ebitda,
+                }
+            )
+            for field_name, value in (
+                ("sales", sales),
+                ("net_profit", net_profit),
+                ("ebitda", ebitda),
+            ):
+                if value is None:
+                    missing.append(f"rows[{index}].{field_name}")
+
+        return {
+            "symbol": symbol,
+            "unit": "mnTL",
+            "estimate_year": estimate_year,
+            "rows": parsed_rows,
+            "meta": {
+                "source": "isyatirim-sirket-karti",
+                "missing": missing,
+            },
+        }
+
     def get_consensus_estimates(self, symbol: str) -> dict[str, Any]:
         """
         Get the current-year consensus estimates from the İş Yatırım card.
@@ -1625,6 +1745,41 @@ class IsYatirimProvider(BaseProvider):
             ) from e
 
         result = self._parse_consensus_estimates(html_text)
+        self._cache_set(cache_key, result, TTL.FINANCIAL_STATEMENTS)
+        return result
+
+    def get_absolute_figures(self, symbol: str) -> dict[str, Any]:
+        """
+        Get the multi-year "Mutlak Rakamlar" figures from the İş Yatırım card.
+
+        Args:
+            symbol: Stock symbol (e.g., "THYAO").
+
+        Returns:
+            Dictionary with the fixed absolute-figures shape (see
+            :meth:`_parse_absolute_figures`).
+
+        Raises:
+            APIError: If the company card page cannot be fetched.
+        """
+        symbol = symbol.upper().replace(".IS", "").replace(".E", "")
+
+        cache_key = f"isyatirim:absolute_figures:{symbol}"
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        url = f"{self.STATEMENT_PAGE_URL}?hisse={symbol}"
+        try:
+            response = self._client.get(url, timeout=15)
+            response.raise_for_status()
+            html_text = response.text
+        except Exception as e:
+            raise APIError(
+                f"Failed to fetch absolute figures for {symbol}: {e}"
+            ) from e
+
+        result = self._parse_absolute_figures(html_text)
         self._cache_set(cache_key, result, TTL.FINANCIAL_STATEMENTS)
         return result
 
