@@ -12,6 +12,46 @@ from borsapy._providers.base import BaseProvider
 from borsapy.cache import TTL
 from borsapy.exceptions import APIError, DataNotAvailableError, TickerNotFoundError
 
+# Fixed order of the consensus estimate items (source "Kalem" mapping below).
+_CONSENSUS_KEY_ORDER = (
+    "net_profit",
+    "revenue",
+    "ebitda",
+    "equity",
+    "total_assets",
+    "premiums_earned",
+    "net_interest_income",
+    "deposits",
+)
+
+_CONSENSUS_KALEM_MAP = {
+    "NetKar": "net_profit",
+    "Satislar": "revenue",
+    "Favok": "ebitda",
+    "Ozsermaye": "equity",
+    "AktifToplami": "total_assets",
+    "KazanilmisPrimler": "premiums_earned",
+    "NetFaizGeliri": "net_interest_income",
+    "Mevduat": "deposits",
+}
+
+
+def _parse_tr_number(text: str) -> float | None:
+    """Parse a tr-TR number string without ever implying a zero.
+
+    ``"92.138,0"`` -> ``92138.0``, ``"30,9"`` -> ``30.9``, ``"265"`` ->
+    ``265.0``, ``"-27,4"`` -> ``-27.4``.  Empty or unparseable text -> ``None``.
+    """
+    if text is None:
+        return None
+    raw = str(text).replace("\u00a0", " ").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw.replace(".", "").replace(",", "."))
+    except ValueError:
+        return None
+
 
 class IsYatirimProvider(BaseProvider):
     """
@@ -1397,6 +1437,196 @@ class IsYatirimProvider(BaseProvider):
 
         self._cache_set(cache_key, df, TTL.FINANCIAL_STATEMENTS)
         return df
+
+    @staticmethod
+    def _parse_consensus_estimates(html_text: str) -> dict[str, Any]:
+        """Parse the embedded "Tahmin Güncellemeleri" consensus table.
+
+        Pure/offline: no network access, no date parsing and no rounding.
+        Dates are carried as raw strings exactly as published.  Only the
+        current-year consensus estimate and its update date plus the forward
+        multiples are in scope; the 1-week/1-month/3-month change columns are
+        deliberately left unparsed (their semantics are ambiguous).
+        """
+        marker = 'data-csvname="tahminguncellemeleri"'
+        marker_index = html_text.find(marker)
+        if marker_index == -1:
+            raise RuntimeError("tahminguncellemeleri tablosu yok (schema)")
+
+        tbody_match = re.compile(r"<tbody\b", re.IGNORECASE).search(
+            html_text, marker_index
+        )
+        table_end_match = re.compile(r"</table>", re.IGNORECASE).search(
+            html_text, marker_index
+        )
+        if tbody_match is None or table_end_match is None:
+            raise RuntimeError("tahminguncellemeleri tablosu yok (schema)")
+        tbody_index = tbody_match.start()
+        table_end = table_end_match.start()
+        if tbody_index > table_end:
+            raise RuntimeError("tahminguncellemeleri tablosu yok (schema)")
+
+        body_slice = html_text[tbody_index:table_end]
+        row_match = re.search(r"<tr\b[^>]*>(.*?)</tr>", body_slice, re.IGNORECASE | re.DOTALL)
+        if row_match is None:
+            raise RuntimeError("tahminguncellemeleri tablosu yok (schema)")
+
+        cells = re.findall(
+            r"<td\b[^>]*>(.*?)</td>", row_match.group(1), re.IGNORECASE | re.DOTALL
+        )
+        if len(cells) != 7:
+            raise RuntimeError(
+                "tahminguncellemeleri satırı 7 hücre bekleniyordu, "
+                f"found {len(cells)}"
+            )
+
+        symbol = IsYatirimProvider._strip_cell(cells[0])
+        close_tl = _parse_tr_number(IsYatirimProvider._strip_cell(cells[1]))
+
+        estimates: dict[str, float | None] = dict.fromkeys(_CONSENSUS_KEY_ORDER)
+        update_dates: dict[str, str | None] = dict.fromkeys(_CONSENSUS_KEY_ORDER)
+
+        div_pattern = re.compile(
+            r"<div\b[^>]*class=[\"']([^\"']*)[\"'][^>]*>(.*?)</div>",
+            re.IGNORECASE | re.DOTALL,
+        )
+        for cell_html, target in ((cells[2], estimates), (cells[3], update_dates)):
+            for class_attr, div_body in div_pattern.findall(cell_html):
+                kalem = next(
+                    (
+                        token
+                        for token in class_attr.split()
+                        if token in _CONSENSUS_KALEM_MAP
+                    ),
+                    None,
+                )
+                if kalem is None:
+                    continue
+                key = _CONSENSUS_KALEM_MAP[kalem]
+                text = IsYatirimProvider._strip_cell(div_body)
+                if target is estimates:
+                    target[key] = _parse_tr_number(text)
+                else:
+                    target[key] = text or None
+
+        fwd_marker = html_text.find("F/K Tahmin")
+        if fwd_marker == -1:
+            raise RuntimeError("F/K Tahmin tablosu yok (schema)")
+        fwd_table_start = -1
+        for table_match in re.compile(r"<table\b", re.IGNORECASE).finditer(
+            html_text, 0, fwd_marker
+        ):
+            fwd_table_start = table_match.start()
+        fwd_table_end_match = re.compile(r"</table>", re.IGNORECASE).search(
+            html_text, fwd_marker
+        )
+        if fwd_table_start == -1 or fwd_table_end_match is None:
+            raise RuntimeError("F/K Tahmin tablosu yok (schema)")
+        fwd_table = html_text[fwd_table_start : fwd_table_end_match.end()]
+
+        fwd_cells: list[str] | None = None
+        for row_body in re.findall(
+            r"<tr\b[^>]*>(.*?)</tr>", fwd_table, re.IGNORECASE | re.DOTALL
+        ):
+            row_cells = re.findall(
+                r"<td\b[^>]*>(.*?)</td>", row_body, re.IGNORECASE | re.DOTALL
+            )
+            if not row_cells:
+                continue
+            if IsYatirimProvider._strip_cell(row_cells[0]) == symbol:
+                fwd_cells = row_cells
+                break
+        if fwd_cells is None:
+            raise RuntimeError(
+                f"F/K Tahmin tablosunda {symbol} satırı yok (schema)"
+            )
+        if len(fwd_cells) != 7:
+            raise RuntimeError(
+                "F/K Tahmin satırı 7 hücre bekleniyordu, "
+                f"found {len(fwd_cells)}"
+            )
+
+        fwd_text = [IsYatirimProvider._strip_cell(cell) for cell in fwd_cells[1:]]
+        forward_multiples = {
+            "pe": _parse_tr_number(fwd_text[0]),
+            "ev_ebitda": _parse_tr_number(fwd_text[2]),
+            "pb": _parse_tr_number(fwd_text[4]),
+        }
+        forward_premium_discount_pct = {
+            "pe": _parse_tr_number(fwd_text[1]),
+            "ev_ebitda": _parse_tr_number(fwd_text[3]),
+            "pb": _parse_tr_number(fwd_text[5]),
+        }
+
+        decoded = html_module.unescape(html_text)
+        years = {
+            int(match)
+            for match in re.findall(
+                r"(\d{4})\s+y[ıi]l[ıi]n[ıi]n tahminleri", decoded
+            )
+        }
+        if len(years) > 1:
+            raise RuntimeError(
+                f"çelişkili tahmin yılı: {sorted(years)}"
+            )
+        estimate_year = next(iter(years)) if years else None
+
+        missing = [key for key in _CONSENSUS_KEY_ORDER if estimates[key] is None]
+
+        return {
+            "symbol": symbol,
+            "close_tl": close_tl,
+            "estimate_year": estimate_year,
+            "unit": "mnTL",
+            "estimates": estimates,
+            "update_dates": update_dates,
+            "forward_multiples": forward_multiples,
+            "forward_premium_discount_pct": forward_premium_discount_pct,
+            "meta": {
+                "source": "isyatirim-sirket-karti",
+                "missing": missing,
+                "caveats": [
+                    "Cari yıl konsensüsüdür; kurum listesi yoktur.",
+                    "1 Hafta/1 Ay/3 Ay kolonları semantik belirsizdir; "
+                    "v1 bilinçli olarak kapsam dışıdır.",
+                ],
+            },
+        }
+
+    def get_consensus_estimates(self, symbol: str) -> dict[str, Any]:
+        """
+        Get the current-year consensus estimates from the İş Yatırım card.
+
+        Args:
+            symbol: Stock symbol (e.g., "THYAO").
+
+        Returns:
+            Dictionary with the fixed consensus shape (see
+            :meth:`_parse_consensus_estimates`).
+
+        Raises:
+            APIError: If the company card page cannot be fetched.
+        """
+        symbol = symbol.upper().replace(".IS", "").replace(".E", "")
+
+        cache_key = f"isyatirim:consensus:{symbol}"
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        url = f"{self.STATEMENT_PAGE_URL}?hisse={symbol}"
+        try:
+            response = self._client.get(url, timeout=15)
+            response.raise_for_status()
+            html_text = response.text
+        except Exception as e:
+            raise APIError(
+                f"Failed to fetch consensus estimates for {symbol}: {e}"
+            ) from e
+
+        result = self._parse_consensus_estimates(html_text)
+        self._cache_set(cache_key, result, TTL.FINANCIAL_STATEMENTS)
+        return result
 
     def get_recommendations(self, symbol: str) -> dict[str, Any]:
         """

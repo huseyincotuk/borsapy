@@ -264,6 +264,10 @@ class HedeFiyatProvider(BaseProvider):
         """
         Parse price target data from HTML.
 
+        The page carries no analyst distribution, so the previously fabricated
+        median (``(low + high) / 2``) was removed (FA-10a-B) and ``median`` is
+        always ``None``.
+
         Args:
             html: Page HTML content.
 
@@ -324,10 +328,6 @@ class HedeFiyatProvider(BaseProvider):
             )
             if count_match:
                 result["numberOfAnalysts"] = int(count_match.group(1))
-
-            # Calculate median from low and high if available
-            if result["low"] is not None and result["high"] is not None:
-                result["median"] = round((result["low"] + result["high"]) / 2, 2)
 
             return result
 
