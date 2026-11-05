@@ -53,7 +53,7 @@ import httpx
 
 from borsapy._providers.base import BaseProvider
 from borsapy.cache import TTL
-from borsapy.exceptions import APIError
+from borsapy.exceptions import APIError, DataNotAvailableError
 
 # ----- API key management -----------------------------------------------------
 
@@ -129,6 +129,10 @@ NUMERIC_FREQ_NORMALIZE: dict[int, int] = {
 }
 
 AGGREGATION: tuple[str, ...] = ("avg", "min", "max", "first", "last", "sum")
+
+# TÜFE (CPI) 2025=100 series — FA-14a. Official TÜİK series served by EVDS3.
+_CPI_SERI_KODU = "TP.TUKFIY2025.GENEL"
+_CPI_DATAGROUP = "bie_tukfiy2025"
 
 # Formula ID (string) → human label. POST /fe wants `formulas="0"` etc.
 FORMULA: dict[str, tuple[str, str]] = {
@@ -1192,3 +1196,98 @@ def get_evds_provider() -> EVDSProvider:
     if _provider is None:
         _provider = EVDSProvider()
     return _provider
+
+
+# ----- TÜFE / CPI index capture (FA-14a) --------------------------------------
+
+
+def _normalize_cpi_items(items: list[dict]) -> dict[str, float]:
+    """Reduce raw EVDS CPI rows to a ``{"YYYY-MM": level}`` mapping.
+
+    Pure function — no network or I/O. ``Tarih`` uses EVDS's unpadded month
+    form (``"2026-1"``) which is normalized to zero-padded ``"2026-01"``.
+    Rows with a missing/empty level are skipped silently. Malformed dates,
+    non-numeric levels and duplicate month keys fail loud with ``ValueError``.
+    """
+    levels: dict[str, float] = {}
+    for index, item in enumerate(items):
+        tarih = item.get("Tarih")
+        if not isinstance(tarih, str):
+            raise ValueError(
+                f"CPI row {index}: malformed Tarih {tarih!r} (expected 'YYYY-M')"
+            )
+        parts = tarih.split("-")
+        if (
+            len(parts) != 2
+            or not parts[0].isdigit()
+            or not parts[1].isdigit()
+            or not 1 <= int(parts[1]) <= 12
+        ):
+            raise ValueError(
+                f"CPI row {index}: malformed Tarih {tarih!r} (expected 'YYYY-M')"
+            )
+        key = f"{int(parts[0]):04d}-{int(parts[1]):02d}"
+
+        raw_level = item.get(_CPI_SERI_KODU.replace(".", "_"))
+        if raw_level is None or raw_level == "":
+            continue
+        try:
+            text = str(raw_level)
+            if "," in text:
+                # Defensive Turkish decimal-comma support (dot = thousands).
+                text = text.replace(".", "").replace(",", ".")
+            level = float(text)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"CPI row {index}: level {raw_level!r} is not numeric"
+            ) from exc
+
+        if key in levels:
+            raise ValueError(f"CPI row {index}: duplicate month key {key!r}")
+        levels[key] = level
+    return levels
+
+
+def get_cpi_index(
+    *,
+    start: str = "01-01-2005",
+    end: str | None = None,
+    provider: EVDSProvider | None = None,
+) -> dict:
+    """Fetch the official TÜİK CPI index (2025=100) as a monthly mapping.
+
+    Args:
+        start: Start date in EVDS ``DD-MM-YYYY`` form.
+        end: End date; defaults to today's local date.
+        provider: Optional provider override (mainly for offline tests).
+
+    Returns:
+        Contract dict with ``levels``, ``as_of``, ``seri_kodu``,
+        ``veri_grubu``, ``anchor`` and ``kaynak``.
+    """
+    if end is None:
+        end = date.today().strftime("%d-%m-%Y")
+    if provider is None:
+        provider = get_evds_provider()
+
+    data = provider.get_series_data(
+        _CPI_SERI_KODU,
+        start=start,
+        end=end,
+        frequency="monthly",
+        decimals=6,
+    )
+    items = data.get("items") if isinstance(data, dict) else None
+    levels = _normalize_cpi_items(items or [])
+    if not levels:
+        raise DataNotAvailableError(
+            f"No CPI observations returned for {_CPI_SERI_KODU}"
+        )
+    return {
+        "levels": levels,
+        "as_of": max(levels),
+        "seri_kodu": _CPI_SERI_KODU,
+        "veri_grubu": _CPI_DATAGROUP,
+        "anchor": "2025=100",
+        "kaynak": "EVDS3 REST / TUIK",
+    }
