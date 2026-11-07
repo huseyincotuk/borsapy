@@ -41,6 +41,12 @@ class TCMBProvider(BaseProvider):
         """
         Calculate inflation between two dates using TCMB API.
 
+        Availability note: TCMB intermittently rejects this endpoint
+        (observed "Requested endpoint is forbidden" on 2026-11-05 with the
+        same headers that returned HTTP 200 on 2026-11-07).  Such rejections
+        surface as :class:`~borsapy.exceptions.APIError` — the provider never
+        fabricates or locally estimates the missing values.
+
         Args:
             start_year: Starting year (e.g., 2020)
             start_month: Starting month (1-12)

@@ -14,15 +14,18 @@ Gateways and access
 Gateway                Base URL                                    Status
 =====================  ==========================================  =====================
 ``test`` (default)     ``https://apigwdev.mkk.com.tr``              live, verified
-``prod``               ``https://apigw.mkk.com.tr``                 IP allow-list required
+``prod``               ``https://apigw.mkk.com.tr``                 corporate contract required
 =====================  ==========================================  =====================
 
 The production gateway completes TCP+TLS and then silently drops requests for
-hosts that are not on the MKK allow-list.  Production access therefore needs a
-**user action** (requesting an IP allow-list entry from MKK); it is out of
-scope here.  ``gateway="prod"`` selects the production base URL and any error
-received from that gateway is surfaced unchanged — it is never rewritten or
-masked.
+hosts that are not authorized.  Per MKK KAP Destek (2026-11-02; re-probe
+2026-11-07 still drops): production access requires a **corporate**
+subscription — after a data-distribution contract, authorization is issued
+as API key + IP allow-list; there is no individual subscription.  Production
+therefore needs a commercial/legal step (vyk-marketing@borsaistanbul.com),
+out of scope here.  ``gateway="prod"`` selects the production base URL and
+any error received from that gateway is surfaced unchanged — it is never
+rewritten or masked.
 
 Authentication is HTTP **Basic** (``base64(MKK_API_KEY:MKK_API_SECRET)``), as
 verified against the test gateway.  The ``generateToken``/Bearer flow is *not*
