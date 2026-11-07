@@ -160,7 +160,7 @@ from borsapy.exceptions import (
 from borsapy.fund import Fund, compare_funds, management_fees, screen_funds, search_funds
 from borsapy.fx import FX, banks, metal_institutions
 from borsapy.index import Index, all_indices, index, indices
-from borsapy.inflation import Inflation
+from borsapy.inflation import Inflation, get_inflation
 from borsapy.market import companies, search_companies
 from borsapy.multi import Tickers, download
 from borsapy.portfolio import Portfolio
@@ -291,6 +291,7 @@ __all__ = [
     "eurobonds",
     # TCMB functions
     "policy_rate",
+    "get_inflation",
     # EVDS (TCMB Elektronik Veri Dağıtım Sistemi)
     "evds_categories",
     "evds_search",

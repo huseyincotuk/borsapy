@@ -1,5 +1,7 @@
 """Tests for TCMB interest rates."""
 
+from unittest.mock import MagicMock, patch
+
 import pandas as pd
 import pytest
 
@@ -115,3 +117,58 @@ class TestPolicyRateFunction:
         func_rate = policy_rate()
         class_rate = TCMB().policy_rate
         assert func_rate == class_rate
+
+
+# =============================================================================
+# get_inflation Convenience Function Tests (offline, mocked provider)
+# =============================================================================
+
+
+class TestGetInflation:
+    """Offline tests for the get_inflation() module-level function."""
+
+    def test_exported_from_package(self):
+        """get_inflation is part of the public API surface."""
+        import borsapy
+
+        assert "get_inflation" in borsapy.__all__
+        assert callable(borsapy.get_inflation)
+
+    def test_delegates_tufe_defaults(self):
+        from borsapy.inflation import get_inflation
+
+        fake_provider = MagicMock()
+        fake_provider.get_data.return_value = pd.DataFrame()
+        with patch("borsapy.inflation.get_tcmb_provider", return_value=fake_provider):
+            get_inflation()
+        fake_provider.get_data.assert_called_once_with("tufe", None, None, None)
+
+    def test_delegates_ufe_with_filters(self):
+        from borsapy.inflation import get_inflation
+
+        fake_provider = MagicMock()
+        fake_provider.get_data.return_value = pd.DataFrame()
+        with patch("borsapy.inflation.get_tcmb_provider", return_value=fake_provider):
+            frame = get_inflation("ufe", start="2023-01-01", end="2023-12-31", limit=6)
+        fake_provider.get_data.assert_called_once_with(
+            "ufe", "2023-01-01", "2023-12-31", 6
+        )
+        assert isinstance(frame, pd.DataFrame)
+
+    def test_invalid_type_raises_value_error(self):
+        """Validation lives in the provider and runs before any network call."""
+        from borsapy._providers.tcmb import TCMBProvider
+        from borsapy.inflation import get_inflation
+
+        provider = TCMBProvider()
+        with patch("borsapy.inflation.get_tcmb_provider", return_value=provider):
+            with pytest.raises(ValueError, match="Invalid type"):
+                get_inflation("cpi")
+
+    def test_calculate_inflation_docstring_flags_flakiness(self):
+        """The intermittent-forbidden availability note stays in the docstring."""
+        from borsapy._providers.tcmb import TCMBProvider
+
+        doc = TCMBProvider.calculate_inflation.__doc__ or ""
+        assert "intermittently" in doc
+        assert "APIError" in doc

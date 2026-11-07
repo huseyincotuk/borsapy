@@ -164,3 +164,36 @@ class Inflation:
 
     def __repr__(self) -> str:
         return "Inflation()"
+
+
+def get_inflation(
+    inflation_type: str = "tufe",
+    start: str | None = None,
+    end: str | None = None,
+    limit: int | None = None,
+) -> pd.DataFrame:
+    """
+    Get monthly inflation RATES (yearly/monthly %) from TCMB's official
+    inflation statistics page.
+
+    Module-level convenience wrapper over ``Inflation().tufe()`` /
+    ``Inflation().ufe()`` (same source, same column contract).  Rates only:
+    the page carries no index LEVEL column.  For the official CPI index
+    levels used as deflator input use the EVDS helper
+    ``borsapy._providers.evds.get_cpi_index`` (requires ``EVDS_API_KEY``).
+
+    Args:
+        inflation_type: 'tufe' (CPI) or 'ufe' (PPI).
+        start: Start date in YYYY-MM-DD format.
+        end: End date in YYYY-MM-DD format.
+        limit: Maximum number of records.
+
+    Returns:
+        DataFrame with Date index and columns YearMonth, YearlyInflation,
+        MonthlyInflation.
+
+    Examples:
+        >>> import borsapy as bp
+        >>> df = bp.get_inflation(limit=6)  # last 6 months of TUE
+    """
+    return get_tcmb_provider().get_data(inflation_type, start, end, limit)
