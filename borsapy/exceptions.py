@@ -62,3 +62,13 @@ class InvalidIntervalError(BorsapyError):
         super().__init__(
             f"Invalid interval: {interval}. Valid intervals: {', '.join(valid_intervals)}"
         )
+
+
+class KAPStructureError(BorsapyError):
+    """Raised when a required section of a KAP page cannot be parsed.
+
+    Fail-closed: an absent or unparseable mandatory block never yields a
+    partial (guessed) company structure.
+    """
+
+    pass

@@ -3,12 +3,35 @@
 import json
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 
 import pandas as pd
 
 from borsapy._providers.base import BaseProvider
-from borsapy.exceptions import APIError
+from borsapy.exceptions import APIError, KAPStructureError
+
+# Literal marker used for source-side missing values ("Bilgi Mevcut Değil").
+DATA_UNAVAILABLE = "VERİ YOK"
+
+# KAP "Genel Bilgiler" (company general info) grid/item keys parsed by
+# ``get_company_structure``. These are server-rendered item keys of the
+# capital-structure accordion; see ``KAP_genel_sayfa_FD_dogrulama.md``.
+STRUCTURE_ITEM_PAID_IN_CAPITAL = "kpy41_acc5_odenmis_sermaye"
+STRUCTURE_ITEM_CAPITAL_CEILING = "kpy41_acc5_kayitli_sermaye_tavani"
+STRUCTURE_ITEM_DIRECT_SHAREHOLDERS = "kpy41_acc5_sermayede_dogrudan"
+STRUCTURE_ITEM_INDIRECT_SHAREHOLDERS = "kpy41_acc5_son_durum_sermayeye"
+STRUCTURE_ITEM_SHARE_GROUPS = "kpy41_acc5_sermayeyi_temsil_eden"
+STRUCTURE_ITEM_ACTUAL_FLOAT = "kpy41_acc5_fiili_dolasimdaki_pay"
+
+# Grid carrying the free-float methodology note (SPK 54/1626).
+STRUCTURE_GRID_ACTUAL_FLOAT = "actualSharesOutstandingGrid"
+
+# Turkish formatted numbers: thousands ".", decimals "," (e.g. 154.873.002,50).
+# KAP mixes formats (some rows carry "1379999999.99"), see _parse_tr_decimal.
+_TR_THOUSANDS_RE = re.compile(r"\d{1,3}(?:\.\d{3})+")
+_TR_PLAIN_DECIMAL_RE = re.compile(r"\d+\.\d+")
+_UNAVAILABLE_TEXTS = {"", "-", "Bilgi Mevcut Değil", "Bilgi mevcut değil", "BİLGİ MEVCUT DEĞİL"}
 
 # Next.js SSR flight data embeds the BIST company list as pushed chunks:
 #   self.__next_f.push([1,"..."])
@@ -70,6 +93,533 @@ def _decode_member_blocks(html: str) -> list[dict]:
     return records
 
 
+def _match_json_object(text: str, start: int) -> str | None:
+    """Return the balanced ``{...}`` slice starting at ``start``.
+
+    Brace counting is string-aware so that braces inside JSON string values
+    (HTML snippets, notes) do not terminate the object early.
+    """
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : index + 1]
+    return None
+
+
+def _extract_named_object(payload: str, marker: str) -> dict | None:
+    """Decode the JSON object that follows ``"<marker>":`` in the payload."""
+    position = payload.find(f'"{marker}":')
+    if position < 0:
+        return None
+    brace = payload.find("{", position)
+    if brace < 0:
+        return None
+    chunk = _match_json_object(payload, brace)
+    if chunk is None:
+        return None
+    try:
+        parsed = json.loads(chunk)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _extract_item_object(payload: str, item_key: str) -> dict | None:
+    """Decode the ``itemObject`` block carrying ``item_key``."""
+    key_position = payload.find(f'"itemKey":"{item_key}"')
+    if key_position < 0:
+        return None
+    object_marker = payload.rfind('"itemObject":', 0, key_position)
+    start = payload.find("{", object_marker) if object_marker >= 0 else -1
+    if start < 0 or start > key_position:
+        start = payload.rfind('{"no":', 0, key_position)
+    if start < 0:
+        return None
+    chunk = _match_json_object(payload, start)
+    if chunk is None:
+        return None
+    try:
+        parsed = json.loads(chunk)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _item_display_text(payload: str, item_key: str) -> str | None:
+    """Return the text KAP renders next to an item block (e.g. "Bilgi Mevcut Değil")."""
+    key_position = payload.find(f'"itemKey":"{item_key}"')
+    if key_position < 0:
+        return None
+    start = payload.rfind('{"no":', 0, key_position)
+    if start < 0:
+        return None
+    chunk = _match_json_object(payload, start)
+    if chunk is None:
+        return None
+    tail = payload[start + len(chunk) : start + len(chunk) + 1500]
+    match = re.search(r'"children":"((?:[^"\\]|\\.)*)"', tail)
+    if not match:
+        return None
+    try:
+        return json.loads(f'"{match.group(1)}"').strip()
+    except json.JSONDecodeError:
+        return None
+
+
+def _option_text(raw: object) -> str | None:
+    """Flatten KAP's ``{"key": ..., "text": ...}`` option values to their text."""
+    if isinstance(raw, dict):
+        text = raw.get("text")
+        return text.strip() if isinstance(text, str) and text.strip() else None
+    if isinstance(raw, str):
+        return raw.strip() or None
+    return None
+
+
+def _is_unavailable(raw: object) -> bool:
+    """True when the source expresses absence instead of a value."""
+    if raw is None:
+        return True
+    if isinstance(raw, str):
+        return raw.strip() in _UNAVAILABLE_TEXTS
+    if isinstance(raw, (list, tuple, dict)):
+        return len(raw) == 0
+    return False
+
+
+def _parse_tr_decimal(raw: object) -> Decimal | None:
+    """Parse a KAP number into ``Decimal`` (no guessing).
+
+    Accepted layouts:
+
+    * ``154.873.002,50`` — Turkish (dot = thousands, comma = decimals)
+    * ``393516000``      — plain integer
+    * ``1379999999.99``  — plain decimal, present in some KAP rows
+
+    A lone dot followed by exactly three digits (``1.234``) is read as a
+    Turkish thousands separator; part-whole reconciliations guard the result.
+    """
+    if _is_unavailable(raw):
+        return None
+    if isinstance(raw, Decimal):
+        return raw
+    if isinstance(raw, (int, float)):
+        return Decimal(str(raw))
+
+    text = str(raw).strip().replace("\u00a0", "").replace(" ", "")
+    if not re.fullmatch(r"-?\d[\d.,]*", text):
+        return None
+
+    negative = text.startswith("-")
+    body = text[1:] if negative else text
+
+    if "," in body:
+        if body.count(",") > 1:
+            return None
+        integer_part, decimal_part = body.split(",")
+        if not re.fullmatch(r"\d+|" + _TR_THOUSANDS_RE.pattern, integer_part):
+            return None
+        if not re.fullmatch(r"\d+", decimal_part):
+            return None
+        normalized = integer_part.replace(".", "") + "." + decimal_part
+    elif "." in body:
+        if _TR_THOUSANDS_RE.fullmatch(body):
+            normalized = body.replace(".", "")
+        elif _TR_PLAIN_DECIMAL_RE.fullmatch(body):
+            normalized = body
+        else:
+            return None
+    else:
+        normalized = body
+
+    try:
+        value = Decimal(normalized)
+    except InvalidOperation:
+        return None
+    return -value if negative else value
+
+
+def _parse_dmy_date(raw: object) -> str | None:
+    """Normalize ``dd/mm/yyyy`` or ``yyyymmdd`` to ISO ``yyyy-mm-dd``."""
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    text = raw.strip()
+    match = re.fullmatch(r"(\d{2})/(\d{2})/(\d{4})(?: \d{2}:\d{2}:\d{2})?", text)
+    if match:
+        return f"{match.group(3)}-{match.group(2)}-{match.group(1)}"
+    if re.fullmatch(r"\d{8}", text):
+        return f"{text[0:4]}-{text[4:6]}-{text[6:8]}"
+    return None
+
+
+def _require_item_object(
+    payload: str, item_key: str, field_name: str, symbol: str
+) -> dict:
+    """Return a mandatory item block or fail closed."""
+    item = _extract_item_object(payload, item_key)
+    if item is None:
+        raise KAPStructureError(
+            f"KAP company page is missing the '{field_name}' block "
+            f"({item_key}) for {symbol}; refusing to return a partial structure"
+        )
+    return item
+
+
+def _parse_company_structure(
+    payload: str,
+    *,
+    symbol: str,
+    member_oid: str,
+    source_url: str,
+    retrieved_at: str | None = None,
+) -> dict:
+    """Parse the capital-structure blocks of a KAP "Genel Bilgiler" page.
+
+    Only values literally present in the page are returned. Missing source
+    values are reported as :data:`DATA_UNAVAILABLE` with a reason; absent
+    mandatory blocks raise :class:`KAPStructureError` (fail-closed).
+    """
+    missing: list[dict] = []
+
+    # --- Ödenmiş / çıkarılmış sermaye -------------------------------------
+    paid_item = _require_item_object(
+        payload, STRUCTURE_ITEM_PAID_IN_CAPITAL, "ödenmiş sermaye", symbol
+    )
+    paid_raw = paid_item.get("value")
+    paid_in_capital = _parse_tr_decimal(paid_raw)
+    if paid_in_capital is None:
+        raise KAPStructureError(
+            f"KAP company page has an unparseable paid-in capital value for "
+            f"{symbol}: {paid_raw!r}"
+        )
+
+    # --- Kayıtlı sermaye tavanı (section must exist; value may be absent) --
+    ceiling_item = _require_item_object(
+        payload, STRUCTURE_ITEM_CAPITAL_CEILING, "kayıtlı sermaye tavanı", symbol
+    )
+    ceiling_raw = ceiling_item.get("value")
+    capital_ceiling = _parse_tr_decimal(ceiling_raw)
+    if capital_ceiling is None:
+        missing.append(
+            {
+                "field": "registered_capital_ceiling",
+                "status": DATA_UNAVAILABLE,
+                "reason": f"kaynakta değer yok ({ceiling_raw!r})",
+            }
+        )
+
+    # --- Doğrudan ortaklar (≥ %3) -----------------------------------------
+    direct_item = _require_item_object(
+        payload, STRUCTURE_ITEM_DIRECT_SHAREHOLDERS, "doğrudan ortaklar", symbol
+    )
+    direct_raw_rows = direct_item.get("value")
+    direct_rows: list[dict] = []
+    reported_total: dict | None = None
+    if not _is_unavailable(direct_raw_rows) and not isinstance(direct_raw_rows, list):
+        raise KAPStructureError(
+            f"KAP company page has an unexpected direct-shareholder shape for "
+            f"{symbol}: {type(direct_raw_rows).__name__}"
+        )
+    if _is_unavailable(direct_raw_rows):
+        direct_status = DATA_UNAVAILABLE
+        missing.append(
+            {
+                "field": "direct_shareholders",
+                "status": DATA_UNAVAILABLE,
+                "reason": "kaynakta ortak satırı yok",
+            }
+        )
+    else:
+        direct_status = "OK"
+        for row in direct_raw_rows:
+            name = (row.get("shareholder") or "").strip()
+            parsed_row = {
+                "name": name,
+                "share_tl": _parse_tr_decimal(row.get("shareInCapital")),
+                "ratio_percent": _parse_tr_decimal(row.get("ratioInCapital")),
+                "voting_ratio_percent": _parse_tr_decimal(
+                    row.get("votingRightRatio")
+                ),
+                "raw": dict(row),
+            }
+            if name.upper() == "TOPLAM":
+                reported_total = parsed_row
+            else:
+                direct_rows.append(parsed_row)
+
+    direct_block = {
+        "status": direct_status,
+        "as_of": _parse_dmy_date(direct_item.get("creationDate")),
+        "as_of_raw": direct_item.get("creationDate"),
+        "section_title": (direct_item.get("itemName") or "").strip() or None,
+        "rows": direct_rows,
+        "reported_total": reported_total,
+        "raw_rows": direct_raw_rows if isinstance(direct_raw_rows, list) else [],
+    }
+
+    # --- Dolaylı ortaklar (kaynak "Bilgi Mevcut Değil" diyebilir) ---------
+    indirect_item = _extract_item_object(payload, STRUCTURE_ITEM_INDIRECT_SHAREHOLDERS)
+    indirect_raw_value = indirect_item.get("value") if indirect_item else None
+    indirect_rows = (
+        indirect_raw_value
+        if isinstance(indirect_raw_value, list)
+        and indirect_raw_value
+        and all(isinstance(row, dict) for row in indirect_raw_value)
+        else None
+    )
+    if indirect_rows is None:
+        # KAP expresses absence either literally ("Bilgi Mevcut Değil") or with
+        # a short code such as "DOBY" whose rendered text is shown next to it.
+        display_text = _item_display_text(
+            payload, STRUCTURE_ITEM_INDIRECT_SHAREHOLDERS
+        )
+        reason = (
+            f"kaynak ifadesi: {display_text}"
+            if display_text
+            else f"kaynakta satır yok (ham değer: {indirect_raw_value!r})"
+        )
+        indirect_block = {
+            "status": DATA_UNAVAILABLE,
+            "reason": reason,
+            "as_of": _parse_dmy_date(
+                indirect_item.get("creationDate") if indirect_item else None
+            ),
+            "rows": [],
+            "raw_value": indirect_raw_value,
+            "raw_rows": [],
+        }
+        missing.append(
+            {
+                "field": "indirect_shareholders",
+                "status": DATA_UNAVAILABLE,
+                "reason": reason,
+            }
+        )
+    else:
+        indirect_block = {
+            "status": "OK",
+            "reason": None,
+            "as_of": _parse_dmy_date(indirect_item.get("creationDate")),
+            "rows": [dict(row) for row in indirect_rows],
+            "raw_value": indirect_raw_value,
+            "raw_rows": indirect_rows,
+        }
+
+    # --- Sermayeyi temsil eden paylar (A/B grupları) ----------------------
+    groups_item = _require_item_object(
+        payload, STRUCTURE_ITEM_SHARE_GROUPS, "pay grupları", symbol
+    )
+    groups_raw_rows = groups_item.get("value")
+    if _is_unavailable(groups_raw_rows) or not isinstance(groups_raw_rows, list):
+        raise KAPStructureError(
+            f"KAP company page has no share-group rows for {symbol}"
+        )
+    group_rows = [
+        {
+            "group": (row.get("shareGroup") or "").strip(),
+            "nominal_value": _parse_tr_decimal(row.get("nominalValueOfShares")),
+            "ratio_to_total_capital": _parse_tr_decimal(
+                row.get("ratioToTotalCapital")
+            ),
+            "exchange_traded": _option_text(row.get("exchangeTradedOrNot")),
+            "raw": dict(row),
+        }
+        for row in groups_raw_rows
+    ]
+    groups_total = sum(
+        (row["nominal_value"] for row in group_rows if row["nominal_value"]), Decimal(0)
+    )
+    groups_block = {
+        "status": "OK",
+        "as_of": _parse_dmy_date(groups_item.get("creationDate")),
+        "as_of_raw": groups_item.get("creationDate"),
+        "rows": group_rows,
+        "total_nominal": groups_total,
+        "matches_paid_in_capital": groups_total == paid_in_capital,
+        "raw_rows": groups_raw_rows,
+    }
+
+    # --- Fiili dolaşım ----------------------------------------------------
+    float_item = _require_item_object(
+        payload, STRUCTURE_ITEM_ACTUAL_FLOAT, "fiili dolaşım", symbol
+    )
+    float_raw_rows = float_item.get("value")
+    if _is_unavailable(float_raw_rows) or not isinstance(float_raw_rows, list):
+        raise KAPStructureError(
+            f"KAP company page has no free-float row for {symbol}"
+        )
+    float_row = float_raw_rows[0]
+    total_shares = _parse_tr_decimal(float_row.get("totalShares"))
+    non_traded_shares = _parse_tr_decimal(float_row.get("nonTradedShares"))
+    traded_shares = _parse_tr_decimal(float_row.get("tradedShares"))
+    excluded_c = _parse_tr_decimal(float_row.get("exclSharesC"))
+    excluded_de = _parse_tr_decimal(float_row.get("exclSharesDE"))
+    actual_float = _parse_tr_decimal(float_row.get("actualSharesOutstanding"))
+    float_ratio = _parse_tr_decimal(float_row.get("actualOutstandingSharesRatio"))
+
+    required_numbers = {
+        "total_shares": total_shares,
+        "non_traded_shares": non_traded_shares,
+        "traded_shares": traded_shares,
+        "actual_float_shares": actual_float,
+        "actual_float_ratio_percent": float_ratio,
+    }
+    for field_name, value in required_numbers.items():
+        if value is None:
+            raise KAPStructureError(
+                f"KAP company page free-float row is missing '{field_name}' for "
+                f"{symbol}"
+            )
+
+    # --- Metodoloji künyesi (SPK 54/1626) ---------------------------------
+    float_grid = _extract_named_object(payload, STRUCTURE_GRID_ACTUAL_FLOAT)
+    note = float_grid.get("note1") if float_grid else None
+    methodology_note = note.strip() if isinstance(note, str) and note.strip() else None
+    if methodology_note is None:
+        methodology_note_display = DATA_UNAVAILABLE
+        effective_from = None
+        rule = None
+        missing.append(
+            {
+                "field": "float_methodology",
+                "status": DATA_UNAVAILABLE,
+                "reason": "fiili dolaşım tablosunun dipnotu bulunamadı",
+            }
+        )
+    else:
+        methodology_note_display = methodology_note
+        effective_match = re.search(
+            r"(\d{2})\.(\d{2})\.(\d{4}) tarihinden itibaren", methodology_note
+        )
+        effective_from = (
+            f"{effective_match.group(3)}-{effective_match.group(2)}-"
+            f"{effective_match.group(1)}"
+            if effective_match
+            else None
+        )
+        rule_match = re.search(
+            r"(\d{2}\.\d{2}\.\d{4}) tarihli ve (\d+/\d+) sayılı İlke Kararı",
+            methodology_note,
+        )
+        rule = (
+            f"SPK {rule_match.group(1)} tarihli ve {rule_match.group(2)} sayılı "
+            "İlke Kararı"
+            if rule_match
+            else None
+        )
+
+    # --- Parça-bütün mutabakatları (üç kontrol) ---------------------------
+    share_sum_left = traded_shares + non_traded_shares
+    share_sum_ok = share_sum_left == total_shares
+    float_arith_left = (
+        traded_shares - (excluded_c or Decimal(0)) - (excluded_de or Decimal(0))
+    )
+    float_arith_ok = float_arith_left == actual_float
+    computed_ratio = (actual_float / total_shares) * Decimal(100)
+    computed_ratio_quantized = computed_ratio.quantize(Decimal("0.0001"))
+    ratio_ok = abs(computed_ratio - float_ratio) <= Decimal("0.01")
+
+    reconciliations = [
+        {
+            "name": "traded_plus_non_traded_equals_total",
+            "ok": share_sum_ok,
+            "left": share_sum_left,
+            "right": total_shares,
+            "difference": share_sum_left - total_shares,
+        },
+        {
+            "name": "traded_minus_exclusions_equals_float",
+            "ok": float_arith_ok,
+            "left": float_arith_left,
+            "right": actual_float,
+            "difference": float_arith_left - actual_float,
+        },
+        {
+            "name": "float_over_total_equals_reported_ratio",
+            "ok": ratio_ok,
+            "left": computed_ratio_quantized,
+            "right": float_ratio,
+            "difference": computed_ratio_quantized - float_ratio,
+            "tolerance_pp": Decimal("0.01"),
+        },
+    ]
+
+    as_of = _parse_dmy_date(float_row.get("creationDate")) or _parse_dmy_date(
+        float_item.get("creationDate")
+    )
+    if as_of is None:
+        missing.append(
+            {
+                "field": "as_of",
+                "status": DATA_UNAVAILABLE,
+                "reason": "fiili dolaşım satırında tarih yok",
+            }
+        )
+
+    float_block = {
+        "status": "OK",
+        "as_of": as_of,
+        "as_of_raw": float_row.get("creationDate"),
+        "isin": float_row.get("isin"),
+        "total_shares": total_shares,
+        "non_traded_shares": non_traded_shares,
+        "traded_shares": traded_shares,
+        "excluded_shares_c": excluded_c,
+        "excluded_shares_de": excluded_de,
+        "actual_float_shares": actual_float,
+        "actual_float_ratio_percent": float_ratio,
+        "computed_float_ratio_percent": computed_ratio.quantize(Decimal("0.0001")),
+        "raw_row": dict(float_row),
+    }
+
+    return {
+        "symbol": symbol,
+        "member_oid": member_oid,
+        "source": {
+            "url": source_url,
+            "member_oid": member_oid,
+            "retrieved_at": retrieved_at
+            or datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        },
+        "as_of": as_of,
+        "methodology": {
+            "note": methodology_note_display,
+            "effective_from": effective_from,
+            "rule": rule,
+            "applies_to": STRUCTURE_GRID_ACTUAL_FLOAT,
+        },
+        "paid_in_capital": paid_in_capital,
+        "registered_capital_ceiling": capital_ceiling,
+        "direct_shareholders": direct_block,
+        "indirect_shareholders": indirect_block,
+        "share_groups": groups_block,
+        "float": float_block,
+        "reconciliations": reconciliations,
+        "reconciliations_all_ok": all(item["ok"] for item in reconciliations),
+        "missing": missing,
+        "raw": {
+            "paid_in_capital": paid_raw,
+            "registered_capital_ceiling": ceiling_raw,
+        },
+    }
+
+
 class KAPProvider(BaseProvider):
     """
     Provider for KAP (Kamuyu Aydınlatma Platformu) data.
@@ -99,6 +649,9 @@ class KAPProvider(BaseProvider):
         self._oid_cache_time: float = 0
         self._company_details_cache: dict[str, dict] = {}
         self._company_details_cache_time: dict[str, float] = {}
+        self._general_page_cache: dict[str, tuple[float, str]] = {}
+        self._company_structure_cache: dict[str, dict] = {}
+        self._company_structure_cache_time: dict[str, float] = {}
 
     def get_companies(self) -> pd.DataFrame:
         """
@@ -445,16 +998,93 @@ class KAPProvider(BaseProvider):
         except Exception:
             return {}
 
-    def _get_business_summary(self, member_oid: str) -> str | None:
-        """Get business summary (Faaliyet Konusu) from KAP genel page."""
-        url = f"{self.COMPANY_GENERAL_URL}/{member_oid}"
+    def _get_general_page_html(self, member_oid: str) -> str | None:
+        """Fetch (and cache) the KAP company general-info page HTML once."""
+        current_time = time.time()
+        cached = self._general_page_cache.get(member_oid)
+        if cached is not None and (current_time - cached[0]) < self.CACHE_DURATION:
+            return cached[1]
 
+        url = f"{self.COMPANY_GENERAL_URL}/{member_oid}"
         try:
             response = self._client.get(url, timeout=15)
             if response.status_code != 200:
                 return None
+        except Exception:
+            return None
 
-            text = response.text
+        self._general_page_cache[member_oid] = (current_time, response.text)
+        return response.text
+
+    def get_company_structure(self, symbol: str) -> dict:
+        """
+        Get the capital structure of a company from KAP "Genel Bilgiler".
+
+        Parses the same page ``get_company_details`` already fetches. Returns
+        only source values: paid-in capital, registered capital ceiling,
+        direct shareholders (>= 3%), share totals, I.C / I.D-E exclusions,
+        actual free float with its SPK 54/1626 methodology note, and nominal
+        distribution by share group.
+
+        Args:
+            symbol: Stock symbol (e.g., "PENTA").
+
+        Returns:
+            Dict with ``Decimal`` values, a ``methodology`` credit block, three
+            part-whole ``reconciliations`` and a ``missing`` list marking
+            ``VERİ YOK`` fields with reasons.
+
+        Raises:
+            KAPStructureError: if the member OID or a mandatory page block is
+                unavailable/unparseable (fail-closed, never partial data).
+        """
+        symbol = symbol.upper().replace(".IS", "").replace(".E", "")
+        current_time = time.time()
+
+        cached = self._company_structure_cache.get(symbol)
+        if cached is not None:
+            cached_at = self._company_structure_cache_time.get(symbol, 0)
+            if (current_time - cached_at) < self.CACHE_DURATION:
+                return cached
+
+        member_oid = self.get_member_oid(symbol)
+        if not member_oid:
+            raise KAPStructureError(
+                f"KAP member OID not found for {symbol}; company structure "
+                "cannot be read"
+            )
+
+        html = self._get_general_page_html(member_oid)
+        if html is None:
+            raise KAPStructureError(
+                f"KAP company general page could not be fetched for {symbol} "
+                f"(member OID {member_oid})"
+            )
+
+        try:
+            payload = _extract_next_f_payload(html)
+        except RuntimeError as exc:
+            raise KAPStructureError(
+                f"KAP company general page schema changed for {symbol}: {exc}"
+            ) from exc
+
+        result = _parse_company_structure(
+            payload,
+            symbol=symbol,
+            member_oid=member_oid,
+            source_url=f"{self.COMPANY_GENERAL_URL}/{member_oid}",
+        )
+
+        self._company_structure_cache[symbol] = result
+        self._company_structure_cache_time[symbol] = current_time
+        return result
+
+    def _get_business_summary(self, member_oid: str) -> str | None:
+        """Get business summary (Faaliyet Konusu) from KAP genel page."""
+        try:
+            text = self._get_general_page_html(member_oid)
+            if text is None:
+                return None
 
             # Find the faaliyet_konu section
             key_idx = text.find("kpy41_acc2_faaliyet_konu")
