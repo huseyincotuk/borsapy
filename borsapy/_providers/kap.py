@@ -1,9 +1,10 @@
 """KAP (Kamuyu Aydınlatma Platformu) provider for disclosures and calendar."""
 
+import hashlib
 import json
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 import pandas as pd
@@ -26,6 +27,27 @@ STRUCTURE_ITEM_ACTUAL_FLOAT = "kpy41_acc5_fiili_dolasimdaki_pay"
 
 # Grid carrying the free-float methodology note (SPK 54/1626).
 STRUCTURE_GRID_ACTUAL_FLOAT = "actualSharesOutstandingGrid"
+
+# --- VBTS (Volatilite Bazlı Tedbir Sistemi) ---------------------------------
+# Borsa İstanbul A.Ş.'s KAP member OID. K0-a provenance: **data derivation**
+# (KAP smart search, measured 2026-11-09 19:52; evidence:
+# ``vbts_dkb_arastirma_2026_11_09/kanit/kap_bist_member_disclosures_raw.html``).
+BIST_MEMBER_OID = "4028e4a14bcf2a06014be4d7e6e256b6"
+
+# VBTS records are matched on THREE fields at once. A title-only match is
+# wrong: the same title also carries 448 non-VBTS notices, and the SPK measure
+# family ("Sermaye Piyasası Kurulu Tedbir Kararı", e.g. IEYHO 17.10.2026) is not
+# VBTS. See research RAPOR.md §2.1/§2.5.
+VBTS_DISCLOSURE_CLASS = "DKB"
+VBTS_TITLE = "BISTECH Pay Piyasası Alım Satım Sistemi Duyurusu"
+VBTS_SUMMARY = "Pay Piyasasında Volatilite Bazlı Tedbir Sistemi"
+
+#: Default lookback window. PARAMETER + DEFAULT stamp (K0-a (c)): the 90-day
+#: window is a chosen parameter, not a source fact.
+DEFAULT_VBTS_WINDOW_DAYS = 90
+
+#: Escaped-JSON record marker used by both the company and the member pages.
+_RECORD_MARKER = 'publishDate\\":\\"'
 
 # Turkish formatted numbers: thousands ".", decimals "," (e.g. 154.873.002,50).
 # KAP mixes formats (some rows carry "1379999999.99"), see _parse_tr_decimal.
@@ -253,6 +275,118 @@ def _parse_tr_decimal(raw: object) -> Decimal | None:
     except InvalidOperation:
         return None
     return -value if negative else value
+
+
+def _parse_iso_date_arg(raw: object) -> date | None:
+    """Parse an ``YYYY-MM-DD`` argument into a ``date`` (``None`` if invalid)."""
+    if isinstance(raw, date) and not isinstance(raw, datetime):
+        return raw
+    if not isinstance(raw, str):
+        return None
+    try:
+        return date.fromisoformat(raw.strip())
+    except ValueError:
+        return None
+
+
+def _iso_to_date(raw: str) -> date:
+    """Convert an already-normalized ``YYYY-MM-DD`` string to ``date``."""
+    return date.fromisoformat(raw)
+
+
+def _parse_kap_publish_datetime(raw: object) -> tuple[str | None, str | None]:
+    """Parse KAP ``publishDate`` (``dd.mm.yyyy HH:MM:SS``).
+
+    Returns ``(iso_date, raw_text)``; ``(None, raw)`` when unparseable so the
+    caller can report the source value instead of guessing.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        return None, None
+    text = raw.strip()
+    match = re.fullmatch(r"(\d{2})\.(\d{2})\.(\d{4})(?: \d{2}:\d{2}:\d{2})?", text)
+    if not match:
+        return None, text
+    return f"{match.group(3)}-{match.group(2)}-{match.group(1)}", text
+
+
+def _split_escaped_records(text: str) -> list[str]:
+    """Slice KAP's escaped-JSON payload into one chunk per disclosure record.
+
+    Records are keyed by ``publishDate\":\"``. Slicing (instead of one global
+    regex) keeps a record missing a field from borrowing the next record's
+    value - the failure mode that would silently mislabel disclosure classes.
+    """
+    starts = [match.start() for match in re.finditer(re.escape(_RECORD_MARKER), text)]
+    if not starts:
+        return []
+    bounds = starts[1:] + [min(starts[-1] + 8000, len(text))]
+    return [text[start:end] for start, end in zip(starts, bounds, strict=True)]
+
+
+def _escaped_string_field(chunk: str, key: str) -> str | None:
+    """Read ``\"key\":\"value\"`` from one escaped-JSON record chunk."""
+    match = re.search(
+        re.escape(key) + r'\\":\\"((?:[^\\]|\\.)*?)\\"', chunk
+    )
+    if not match:
+        return None
+    value = match.group(1).strip()
+    return value or None
+
+
+def _escaped_int_field(chunk: str, key: str) -> int | None:
+    """Read an integer ``\"key\":123`` field from an escaped-JSON chunk."""
+    match = re.search(re.escape(key) + r'\\":(\d+)', chunk)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def _parse_disclosure_records(text: str) -> list[dict]:
+    """Parse every disclosure record embedded in a KAP listing page.
+
+    Works for both the company page (``?member=<oid>``) and the BIST member
+    page. Fields that are absent stay ``None`` - nothing is inferred. Records
+    that carry a ``disclosureIndex`` but no ``publishDate`` cannot be sliced, so
+    they are reported as ``orphan`` entries rather than silently dropped.
+    """
+    records: list[dict] = []
+    for chunk in _split_escaped_records(text):
+        iso_date, raw_date = _parse_kap_publish_datetime(
+            _escaped_string_field(chunk, "publishDate")
+        )
+        records.append(
+            {
+                "publish_date": iso_date,
+                "publish_date_raw": raw_date,
+                "disclosure_index": _escaped_int_field(chunk, "disclosureIndex"),
+                "title": _escaped_string_field(chunk, "title"),
+                "related_stocks": _escaped_string_field(
+                    chunk, "relatedStocks"
+                ),
+                "disclosure_class": _escaped_string_field(chunk, "disclosureClass"),
+                "summary": _escaped_string_field(chunk, "summary"),
+            }
+        )
+
+    index_markers = len(re.findall(r'disclosureIndex\\":\d+', text))
+    for _ in range(max(0, index_markers - len(records))):
+        records.append(
+            {
+                "publish_date": None,
+                "publish_date_raw": None,
+                "disclosure_index": None,
+                "title": None,
+                "related_stocks": None,
+                "disclosure_class": None,
+                "summary": None,
+                "orphan": True,
+            }
+        )
+    return records
 
 
 def _parse_dmy_date(raw: object) -> str | None:
@@ -652,6 +786,8 @@ class KAPProvider(BaseProvider):
         self._general_page_cache: dict[str, tuple[float, str]] = {}
         self._company_structure_cache: dict[str, dict] = {}
         self._company_structure_cache_time: dict[str, float] = {}
+        self._vbts_cache: tuple[list[dict], dict] | None = None
+        self._vbts_cache_time: float = 0
 
     def get_companies(self) -> pd.DataFrame:
         """
@@ -793,23 +929,36 @@ class KAPProvider(BaseProvider):
         self._oid_cache_time = current_time
         return oid_map.get(symbol)
 
-    def get_disclosures(self, symbol: str, limit: int = 20) -> pd.DataFrame:
+    def get_disclosures(
+        self, symbol: str, limit: int = 20, disclosure_class: str | None = None
+    ) -> pd.DataFrame:
         """
         Get KAP disclosures (bildirimler) for a stock.
 
         Args:
             symbol: Stock symbol (e.g., "THYAO").
             limit: Maximum number of disclosures to return (default: 20).
+            disclosure_class: Optional KAP disclosure class filter (e.g.
+                ``"FR"``, ``"DKB"``, ``"ODA"``). Filtering happens client side
+                on the already-fetched page - it issues NO extra request.
+                ``None`` (default) means no filtering, so the previous
+                behaviour is preserved.
 
         Returns:
-            DataFrame with columns: Date, Title, URL.
+            DataFrame with columns: Date, Title, URL, DisclosureClass.
+
+            ``DisclosureClass`` is additive: records whose class could not be
+            read carry ``None`` (never a guessed value). Those records are
+            also listed in ``df.attrs["unparsed_class_records"]``.
         """
         symbol = symbol.upper().replace(".IS", "").replace(".E", "")
 
         # Get KAP member OID for the symbol
         member_oid = self.get_member_oid(symbol)
         if not member_oid:
-            return pd.DataFrame(columns=["Date", "Title", "URL"])
+            return pd.DataFrame(columns=["Date", "Title", "URL", "DisclosureClass"])
+
+        wanted_class = disclosure_class.strip().upper() if disclosure_class else None
 
         # Fetch disclosures from KAP
         disc_url = f"{self.DISCLOSURE_URL}?member={member_oid}"
@@ -818,28 +967,218 @@ class KAPProvider(BaseProvider):
             response = self._client.get(disc_url, timeout=15)
             response.raise_for_status()
 
-            # Parse disclosures from Next.js embedded data
-            # Format: publishDate\\":\\"29.12.2025 19:21:18\\",\\"disclosureIndex\\":1530826...
-            pattern = (
-                r'publishDate\\":\\"([^\\"]+)\\".*?'
-                r'disclosureIndex\\":(\d+).*?'
-                r'title\\":\\"([^\\"]+)\\"'
-            )
-            matches = re.findall(pattern, response.text, re.DOTALL)
+            parsed = _parse_disclosure_records(response.text)
 
             records = []
-            for date, idx, title in matches[:limit]:
-                url = f"https://www.kap.org.tr/tr/Bildirim/{idx}"
-                records.append({
-                    "Date": date,
-                    "Title": title,
-                    "URL": url,
-                })
+            unparsed: list[dict] = []
+            for item in parsed:
+                date = item["publish_date_raw"]
+                index = item["disclosure_index"]
+                title = item["title"]
+                if date is None or index is None or title is None:
+                    unparsed.append(item)
+                    continue
+                if wanted_class is not None and item["disclosure_class"] != wanted_class:
+                    continue
+                records.append(
+                    {
+                        "Date": date,
+                        "Title": title,
+                        "URL": f"https://www.kap.org.tr/tr/Bildirim/{index}",
+                        "DisclosureClass": item["disclosure_class"],
+                    }
+                )
+                if len(records) >= limit:
+                    break
 
-            return pd.DataFrame(records)
+            frame = pd.DataFrame(
+                records, columns=["Date", "Title", "URL"]
+            )
+            # Object dtype keeps a genuinely missing class as ``None`` instead of
+            # letting pandas turn it into NaN (no guessing, explicit absence).
+            frame["DisclosureClass"] = pd.Series(
+                [row["DisclosureClass"] for row in records], dtype=object
+            )
+            frame = frame[["Date", "Title", "URL", "DisclosureClass"]]
+            frame.attrs["unparsed_class_records"] = unparsed
+            frame.attrs["disclosure_class_filter"] = wanted_class
+            return frame
 
         except Exception as e:
             raise APIError(f"Failed to fetch disclosures for {symbol}: {e}") from e
+
+    def get_vbts_status(
+        self, days: int = DEFAULT_VBTS_WINDOW_DAYS, *, as_of: str | None = None
+    ) -> dict:
+        """
+        Get the VBTS (volatility-based measure) status of the whole BIST market.
+
+        Reads the KAP member page of Borsa İstanbul A.Ş. - ONE request returns
+        every exchange notice - and keeps only genuine VBTS records. A record
+        counts as VBTS only when ALL THREE fields match::
+
+            disclosureClass == "DKB"
+            title            == "BISTECH Pay Piyasası Alım Satım Sistemi Duyurusu"
+            summary          == "Pay Piyasasında Volatilite Bazlı Tedbir Sistemi"
+
+        Matching on the title alone is wrong: the same title is also used for
+        non-VBTS notices, and the SPK measure family ("Sermaye Piyasası Kurulu
+        Tedbir Kararı", e.g. IEYHO 17.10.2026) is NOT VBTS.
+
+        Args:
+            days: Lookback window in days. PARAMETER + DEFAULT stamp (K0-a c);
+                default :data:`DEFAULT_VBTS_WINDOW_DAYS`. Applied client side.
+            as_of: Optional reference date (``YYYY-MM-DD``) for the window.
+                Defaults to today; exists so audits can reproduce a window.
+
+        Returns:
+            Dict with ``window``, ``source`` (URL, sha256, fetch time), ``counts``
+            and ``symbols`` (per symbol: ``vbts_var``, ``kayit_sayisi``,
+            ``son_tarih``, ``disclosure_index``, ``within_window``,
+            ``ham_related``).
+
+        Measure TYPE is deliberately NOT derived: the research proved keyword
+        extraction is unusable (§2.5), so ``tedbir_turu`` is ``VERİ YOK`` and
+        ``disclosure_index`` is left for operator on-demand review. Never
+        invent a type.
+
+        Raises:
+            KAPStructureError: page unreachable, non-200, or unparseable. An
+                empty body means VERİ YOK - it is NEVER read as "no measures".
+
+        Known limit: the member page returns ~11.5 months / 2,000 records;
+        older history is unverified and would need pagination (not implemented).
+        """
+        if days is None or int(days) <= 0:
+            raise ValueError(f"days must be a positive integer, got {days!r}")
+        days = int(days)
+
+        reference = _parse_iso_date_arg(as_of) if as_of else datetime.now().date()
+        if reference is None:
+            raise ValueError(f"as_of must be YYYY-MM-DD, got {as_of!r}")
+        window_from = reference - timedelta(days=days)
+
+        cached = self._vbts_cache
+        if (
+            cached is not None
+            and (time.time() - self._vbts_cache_time) < self.CACHE_DURATION
+        ):
+            parsed, meta = cached
+        else:
+            url = f"{self.DISCLOSURE_URL}?member={BIST_MEMBER_OID}"
+            try:
+                response = self._client.get(url, timeout=60)
+            except Exception as exc:
+                raise KAPStructureError(
+                    f"KAP BIST member page could not be fetched: {exc}"
+                ) from exc
+
+            if response.status_code != 200:
+                raise KAPStructureError(
+                    "KAP BIST member page returned HTTP "
+                    f"{response.status_code}; refusing to report VBTS status"
+                )
+
+            text = response.text or ""
+            parsed = _parse_disclosure_records(text)
+            if not parsed:
+                # Throttle lesson: KAP can answer 200 with an EMPTY body.
+                raise KAPStructureError(
+                    "KAP BIST member page returned no disclosure records; an "
+                    "empty body means VERİ YOK and must not be read as 'no VBTS "
+                    "measures'"
+                )
+
+            meta = {
+                "url": url,
+                "member_oid": BIST_MEMBER_OID,
+                "member_oid_provenance": (
+                    "veri-türetimi (KAP smart search, ölçüm 2026-11-09 19:52)"
+                ),
+                "http_status": response.status_code,
+                "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                "bytes": len(text.encode("utf-8")),
+                "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            }
+            self._vbts_cache = (parsed, meta)
+            self._vbts_cache_time = time.time()
+
+        unparseable = [
+            item
+            for item in parsed
+            if item["publish_date"] is None or item["disclosure_index"] is None
+        ]
+
+        vbts_records = [
+            item
+            for item in parsed
+            if item["disclosure_class"] == VBTS_DISCLOSURE_CLASS
+            and item["title"] == VBTS_TITLE
+            and item["summary"] == VBTS_SUMMARY
+        ]
+
+        symbols: dict[str, dict] = {}
+        in_window_symbols = 0
+        in_window_records = 0
+
+        for item in vbts_records:
+            date = item["publish_date"]
+            within = date is not None and window_from <= _iso_to_date(date) <= reference
+            if within:
+                in_window_records += 1
+
+            for raw_symbol in (item["related_stocks"] or "").split(","):
+                symbol = raw_symbol.strip().upper()
+                if not symbol:
+                    continue
+                entry = symbols.setdefault(
+                    symbol,
+                    {
+                        "vbts_var": True,
+                        "kayit_sayisi": 0,
+                        "son_tarih": None,
+                        "disclosure_index": [],
+                        "within_window": False,
+                        "ham_related": item["related_stocks"],
+                    },
+                )
+                entry["kayit_sayisi"] += 1
+                if item["disclosure_index"] is not None:
+                    entry["disclosure_index"].append(item["disclosure_index"])
+                if date is not None and (entry["son_tarih"] is None or date > entry["son_tarih"]):
+                    entry["son_tarih"] = date
+                if within:
+                    entry["within_window"] = True
+
+        in_window_symbols = sum(1 for entry in symbols.values() if entry["within_window"])
+
+        return {
+            "window": {
+                "days": days,
+                "from": window_from.isoformat(),
+                "to": reference.isoformat(),
+                "as_of_supplied": as_of is not None,
+                "provenance": "PARAMETRE+VARSAYILAN (K0-a c)",
+            },
+            "source": meta,
+            "counts": {
+                "records_total": len(parsed),
+                "dkb_total": sum(
+                    1 for item in parsed if item["disclosure_class"] == "DKB"
+                ),
+                "vbts_matched": len(vbts_records),
+                "records_in_window": in_window_records,
+                "symbols_total": len(symbols),
+                "symbols_in_window": in_window_symbols,
+                "unparseable_records": len(unparseable),
+            },
+            "tedbir_turu": (
+                "VERİ YOK - tedbir türü çıkarılmaz (anahtar-kelime yöntemi "
+                "çürütüldü, RAPOR.md §2.5); gövde okunmaz, disclosure_index "
+                "operatör-on-demand içindir"
+            ),
+            "symbols": dict(sorted(symbols.items())),
+        }
 
     def get_calendar(self, symbol: str) -> pd.DataFrame:
         """
