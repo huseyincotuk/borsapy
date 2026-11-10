@@ -100,9 +100,16 @@ class KAPHoldingsProvider(BaseProvider):
             response = self._client.get(kap_link, timeout=30)
             response.raise_for_status()
 
-            # Extract objId from page data
-            # Pattern: objId\":\"33E5FED7E50300EAE0530A4A622B2AEA\" (escaped quotes in Next.js)
-            match = re.search(r'objId[\\"\':]+([A-F0-9]{32})', response.text)
+            # Extract objId from page data. KAP may emit the hex id in either
+            # case, and the source casing must be preserved as-is: callers use
+            # the id verbatim in the disclosure filter URL path, which is
+            # case-sensitive.
+            # Patterns seen in Next.js payloads (escaped quotes):
+            #   objId\":\"4028328c8b2f3d4e5f60718293a4b5c6\"  (lowercase)
+            #   objId\":\"33E5FED7E50300EAE0530A4A622B2AEA\"  (uppercase)
+            match = re.search(
+                r'objId[\\"\':]+([A-Fa-f0-9]{32})(?![A-Fa-f0-9])', response.text
+            )
             if match:
                 fund_id = match.group(1)
                 self._fund_id_cache[fund_code] = fund_id
