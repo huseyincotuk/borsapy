@@ -3,7 +3,12 @@
 This module extracts detailed portfolio holdings (individual stocks, ETFs, etc.)
 from KAP "Portföy Dağılım Raporu" (Portfolio Distribution Report) disclosures.
 
-Uses pymupdf4llm for PDF to markdown conversion and OpenRouter LLM for parsing.
+Two parsing paths exist:
+
+* ``parse_pdr_pdf`` — deterministic, offline, coordinate-based parsing of the
+  PDF table (default). No network, no API key and no LLM.
+* ``_parse_holdings_with_llm`` — legacy opt-in path using pymupdf4llm and the
+  OpenRouter LLM (``parser="llm"``).
 """
 
 import json
@@ -27,6 +32,65 @@ CACHE_DURATION = 3600  # 1 hour
 # OpenRouter default model
 OPENROUTER_MODEL = "google/gemini-3-flash-preview"
 
+# ---------------------------------------------------------------------------
+# Deterministic PDR parser constants (BHE-tipi Ak Portföy şablonu)
+#
+# Source: 075g evidence (seal `gecmis baglam/fon_hatti_smoke_2026_11_10/`),
+# measured on BHE donem=44 (idx 1696209) and donem=40 (idx 1680169).
+# These x-bands are the column boundaries of that template as printed on the
+# page. Other templates (ROTA/ONE/Deniz, bank/insurance, VIOP funds) were NOT
+# measured; behaviour there is UNVERIFIED.
+# ---------------------------------------------------------------------------
+PDR_ISIN_RE = re.compile(r"[A-Z]{2}[A-Z0-9]{9}[0-9]")
+PDR_TICKER_RE = re.compile(r"[A-Z]{3,6}")
+PDR_PERIOD_RE = re.compile(r"(\d{2}/\d{2}/\d{4})\s*-\s*(\d{2}/\d{2}/\d{4})")
+
+#: y grouping tolerance (points), same value used by the 075g measurement.
+PDR_ROW_TOLERANCE = 2.5
+#: a holding's fields may sit on neighbouring y-lines (multi-line blocks and
+#: small y drift), so tokens within this window of the ISIN anchor are merged.
+PDR_ROW_WINDOW = 9.0
+
+PDR_BAND_TICKER = (0.0, 60.0)       # MENKUL KIYMET CİNSİ karşılığı ticker
+PDR_BAND_CURRENCY = (60.0, 115.0)   # DÖVİZ CİNSİ (TL)
+PDR_BAND_NAME = (115.0, 205.0)      # İHRAÇCI KURUM (kurum adı)
+PDR_BAND_ISIN = (200.0, 365.0)      # ISIN KODU
+PDR_BAND_NOMINAL = (360.0, 416.0)   # NOMİNAL DEĞER
+PDR_BAND_PRICE = (418.0, 460.0)     # BİRİM FİYATI
+PDR_BAND_MARKET_VALUE = (748.0, 806.0)  # TOPLAM DEĞER (TL)
+PDR_BAND_WEIGHT = (838.0, 882.0)    # TOPLAM (FPD GÖRE) — ağırlık %
+
+PDR_CURRENCY_TOKENS = frozenset({"TL", "USD", "EUR", "GBP", "CHF", "JPY"})
+
+
+class PdrParseError(ValueError):
+    """Raised when a PDR PDF payload cannot be parsed deterministically."""
+
+
+def _parse_turkish_number(text: str) -> float | None:
+    """
+    Parse a number printed in Turkish format (thousands '.', decimals ',').
+
+    Explicit replace rule, no locale library:
+        "23.294,00"  -> 23294.0
+        "376,401100" -> 376.4011
+
+    Returns None when the token is not a number (never guesses a value).
+    """
+    cleaned = text.strip().replace("%", "").replace(" ", "")
+    if not cleaned or not re.fullmatch(r"[+-]?\d[\d.,]*", cleaned):
+        return None
+    try:
+        if "," in cleaned:
+            # Turkish: '.' is a thousands separator, ',' is the decimal mark.
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        elif re.fullmatch(r"[+-]?\d{1,3}(?:\.\d{3})+", cleaned):
+            # Integer printed with thousands separators only.
+            cleaned = cleaned.replace(".", "")
+        return float(cleaned)
+    except ValueError:
+        return None
+
 
 @dataclass
 class Holding:
@@ -34,12 +98,23 @@ class Holding:
 
     symbol: str
     isin: str | None
-    name: str
+    name: str | None
     weight: float
     holding_type: str  # 'stock', 'etf', 'fund', 'viop', 'viop_cash', 'reverse_repo', 'term_deposit'
     country: str | None = None
     nominal_value: float | None = None
     market_value: float | None = None
+    unit_price: float | None = None
+
+
+@dataclass(frozen=True)
+class PdrParseResult:
+    """Deterministic result of parsing one PDR PDF."""
+
+    holdings: tuple[Holding, ...]
+    unparsed_rows: tuple[str, ...]
+    page_count: int
+    period_range: tuple[str, str] | None
 
 
 class KAPHoldingsProvider(BaseProvider):
@@ -176,11 +251,19 @@ class KAPHoldingsProvider(BaseProvider):
         """
         Extract file ID from disclosure page HTML.
 
+        KAP emits the 32-char hex id in either casing and the id is used
+        verbatim in the file download URL path, which is case-sensitive, so
+        the source casing is preserved (no normalization).
+
+        Patterns seen: ``file/download/4028328ca17e4f5e01a1c10c9cfc2f3b``
+        (lowercase) and ``file/download/33E5FED7E50300EAE0530A4A622B2AEA``
+        (uppercase).
+
         Args:
             disclosure_index: KAP disclosure index number
 
         Returns:
-            File ID (32 hex chars) or None if not found.
+            File ID (32 hex chars, source casing kept) or None if not found.
         """
         url = f"{self.DISCLOSURE_PAGE_URL}/{disclosure_index}"
 
@@ -188,8 +271,9 @@ class KAPHoldingsProvider(BaseProvider):
             response = self._client.get(url, timeout=30)
             response.raise_for_status()
 
-            # Find file download link: file/download/{32-char-hex-id}
-            match = re.search(r'file/download/([a-f0-9]{32})', response.text)
+            match = re.search(
+                r"file/download/([A-Fa-f0-9]{32})(?![A-Fa-f0-9])", response.text
+            )
             if match:
                 return match.group(1)
 
@@ -228,6 +312,252 @@ class KAPHoldingsProvider(BaseProvider):
 
         except Exception:
             return None
+
+    def _pdr_rows(self, page) -> list[list[tuple[float, float, str]]]:
+        """Group page words into visual rows: y-bucket, then ordered by x."""
+        buckets: dict[int, list[tuple[float, float, str]]] = {}
+        for x0, y0, _x1, _y1, text, *_ in page.get_text("words"):
+            key = int(round(y0 / PDR_ROW_TOLERANCE))
+            buckets.setdefault(key, []).append((x0, y0, text))
+        return [
+            sorted(buckets[key], key=lambda token: (token[0], token[1], token[2]))
+            for key in sorted(buckets)
+        ]
+
+    def _rows_by_y(self, page) -> list[list[str]]:
+        """Visual rows of a page as plain word lists (evidence-compatible)."""
+        return [[token[2] for token in row] for row in self._pdr_rows(page)]
+
+    @staticmethod
+    def _pdr_in_band(token: tuple[float, float, str], band: tuple[float, float]) -> bool:
+        x0 = token[0]
+        return band[0] <= x0 < band[1]
+
+    @classmethod
+    def _pdr_band_number(
+        cls,
+        tokens: list[tuple[float, float, str]],
+        band: tuple[float, float],
+    ) -> float | None:
+        """First Turkish-format number printed inside an x-band (or None)."""
+        for token in sorted(tokens, key=lambda t: (t[1], t[0], t[2])):
+            if not cls._pdr_in_band(token, band):
+                continue
+            text = token[2]
+            if not any(char.isdigit() for char in text):
+                continue
+            value = _parse_turkish_number(text)
+            if value is not None:
+                return value
+        return None
+
+    def _pdr_holding_from_tokens(
+        self,
+        tokens: list[tuple[float, float, str]],
+        isin: str,
+        symbol: str,
+    ) -> Holding | None:
+        """
+        Build one Holding from the token window anchored on an ISIN.
+
+        Returns None when the row cannot be classified honestly as an equity
+        holding (e.g. a repo line whose code is not a BIST ticker, or a row
+        with an unreadable nominal/weight). Callers then keep the raw row in
+        ``unparsed_rows`` — no values are invented.
+        """
+        nominal = self._pdr_band_number(tokens, PDR_BAND_NOMINAL)
+        weight = self._pdr_band_number(tokens, PDR_BAND_WEIGHT)
+        if nominal is None or weight is None:
+            return None
+
+        market_value = self._pdr_band_number(tokens, PDR_BAND_MARKET_VALUE)
+        unit_price = self._pdr_band_number(tokens, PDR_BAND_PRICE)
+
+        name_tokens = [
+            token for token in tokens
+            if self._pdr_in_band(token, PDR_BAND_NAME)
+            and any(char.isalpha() for char in token[2])
+        ]
+        name_tokens.sort(key=lambda t: (t[1], t[0], t[2]))
+
+        # The name is only reported when every alphabetic token of the window
+        # belongs to it. Long wrapped names (e.g. fund names crossing into the
+        # ticker band) cannot be assembled reliably, so they stay None.
+        extra_alpha = False
+        for token in tokens:
+            text = token[2]
+            if not any(char.isalpha() for char in text):
+                continue
+            if PDR_ISIN_RE.fullmatch(text):
+                continue
+            if text in PDR_CURRENCY_TOKENS:
+                continue
+            if self._pdr_in_band(token, PDR_BAND_NAME):
+                continue
+            if text == symbol and self._pdr_in_band(token, PDR_BAND_TICKER):
+                continue
+            extra_alpha = True
+            break
+
+        name = None
+        if name_tokens and not extra_alpha:
+            name = " ".join(token[2] for token in name_tokens)
+
+        return Holding(
+            symbol=symbol,
+            isin=isin,
+            name=name,
+            weight=weight,
+            holding_type="stock",
+            country=None,
+            nominal_value=nominal,
+            market_value=market_value,
+            unit_price=unit_price,
+        )
+
+    def parse_pdr_pdf(self, pdf_data: bytes) -> PdrParseResult:
+        """
+        Deterministically parse portfolio rows from a PDR PDF (offline).
+
+        Input are clean ``%PDF-`` bytes as returned by ``_download_pdf``. All
+        pages are read (no page skipping); rows are rebuilt from word
+        coordinates (y-bucket + x-band) so multi-line blocks and small y drift
+        do not split a holding.
+
+        Args:
+            pdf_data: Raw PDF bytes (must start with/contain ``%PDF-``).
+
+        Returns:
+            PdrParseResult with holdings, raw unparsed rows, page count and the
+            page-1 period range (raw dd/mm/yyyy strings, or None if absent).
+
+        Raises:
+            PdrParseError: Empty payload, missing ``%PDF-`` marker or an
+                unparseable page (fail-closed; never a silent empty result).
+        """
+        if not pdf_data:
+            raise PdrParseError("Empty PDF payload")
+        if b"%PDF-" not in pdf_data[:1024]:
+            raise PdrParseError("Payload is not a PDF: %PDF- marker missing")
+
+        try:
+            import pymupdf
+        except ImportError:
+            raise ImportError(
+                "pymupdf is required for deterministic PDF parsing. "
+                "Install with: pip install pymupdf"
+            ) from None
+
+        try:
+            doc = pymupdf.open(stream=pdf_data, filetype="pdf")
+        except Exception as exc:
+            raise PdrParseError(f"Could not open PDF: {exc}") from exc
+
+        try:
+            page_count = doc.page_count
+            if page_count < 1:
+                raise PdrParseError("PDF has no pages")
+
+            period_range: tuple[str, str] | None = None
+            try:
+                first_text = doc[0].get_text()
+            except Exception as exc:
+                raise PdrParseError(f"Could not read page 1: {exc}") from exc
+            period_match = PDR_PERIOD_RE.search(first_text)
+            if period_match:
+                period_range = (period_match.group(1), period_match.group(2))
+
+            holdings: list[Holding] = []
+            unparsed_rows: list[str] = []
+
+            for page_index in range(page_count):
+                page = doc[page_index]
+                try:
+                    rows = self._pdr_rows(page)
+                except Exception as exc:
+                    raise PdrParseError(
+                        f"Could not parse page {page_index + 1}: {exc}"
+                    ) from exc
+
+                row_y = [
+                    sum(token[1] for token in row) / len(row) if row else 0.0
+                    for row in rows
+                ]
+                consumed: set[int] = set()
+
+                for row_index, row in enumerate(rows):
+                    if row_index in consumed:
+                        continue
+                    for token in row:
+                        if not self._pdr_in_band(token, PDR_BAND_ISIN):
+                            continue
+                        if not PDR_ISIN_RE.fullmatch(token[2]):
+                            continue
+
+                        window = [
+                            index for index, y in enumerate(row_y)
+                            if abs(y - row_y[row_index]) <= PDR_ROW_WINDOW
+                        ]
+                        if consumed.intersection(window):
+                            continue
+
+                        window_tokens = [
+                            window_token
+                            for index in window
+                            for window_token in rows[index]
+                        ]
+                        tickers = sorted(
+                            (
+                                candidate for candidate in window_tokens
+                                if self._pdr_in_band(candidate, PDR_BAND_TICKER)
+                                and PDR_TICKER_RE.fullmatch(candidate[2])
+                            ),
+                            key=lambda t: (t[1], t[0], t[2]),
+                        )
+                        if not tickers:
+                            continue
+
+                        holding = self._pdr_holding_from_tokens(
+                            window_tokens, token[2], tickers[0][2]
+                        )
+                        if holding is None:
+                            continue
+
+                        holdings.append(holding)
+                        consumed.update(window)
+
+                for row_index, row in enumerate(rows):
+                    if row_index in consumed:
+                        continue
+                    raw = " ".join(token[2] for token in row)
+                    # Group/page totals never become holdings; keep them out of
+                    # the unparsed bucket as well (they are not failed rows).
+                    if "TOPLAM" in raw.upper():
+                        continue
+                    # A row is noted as unparsed only when it prints into the
+                    # table's TOPLAM DEĞER / weight columns; other page
+                    # furniture (headers, performance summary) is not a failed
+                    # row.
+                    has_value_column = any(
+                        self._pdr_in_band(token, band)
+                        for token in row
+                        for band in (PDR_BAND_MARKET_VALUE, PDR_BAND_WEIGHT)
+                    )
+                    if not has_value_column:
+                        continue
+                    if not any(char.isdigit() for char in raw):
+                        continue
+                    unparsed_rows.append(raw)
+
+            return PdrParseResult(
+                holdings=tuple(holdings),
+                unparsed_rows=tuple(unparsed_rows),
+                page_count=page_count,
+                period_range=period_range,
+            )
+
+        finally:
+            doc.close()
 
     def _parse_holdings_with_llm(self, pdf_data: bytes, api_key: str) -> list[Holding]:
         """
@@ -403,36 +733,44 @@ DATA:
     def get_holdings(
         self,
         fund_code: str,
-        api_key: str,
+        api_key: str | None = None,
         period: str | None = None,
+        parser: str = "deterministic",
     ) -> list[Holding]:
         """
         Get detailed portfolio holdings for a fund.
 
         Args:
             fund_code: TEFAS fund code (e.g., "YAY", "AAK")
-            api_key: OpenRouter API key for LLM parsing
+            api_key: OpenRouter API key. Only required for ``parser="llm"``.
             period: Optional period in format "YYYY-MM" (e.g., "2025-12")
                    If None, returns the most recent holdings.
+            parser: "deterministic" (default) parses the PDF offline with
+                   no network/LLM and no API key. "llm" keeps the legacy
+                   pymupdf4llm + OpenRouter path.
 
         Returns:
             List of Holding objects with symbol, weight, type, etc.
 
         Raises:
+            ValueError: Unknown parser, or ``parser="llm"`` without api_key.
             DataNotAvailableError: If fund or holdings not found.
             APIError: If API request fails.
 
         Example:
             >>> provider = KAPHoldingsProvider()
-            >>> holdings = provider.get_holdings("YAY", api_key="sk-or-v1-...")
-            >>> for h in holdings:
-            ...     print(f"{h.symbol}: {h.weight:.2f}% ({h.holding_type})")
-            GOOGL: 6.76% (stock)
-            AVGO: 5.11% (stock)
-            ...
+            >>> holdings = provider.get_holdings("YAY")  # deterministic, offline
+            >>> holdings = provider.get_holdings("YAY", api_key="sk-or-v1-...", parser="llm")
         """
+        if parser not in ("deterministic", "llm"):
+            raise ValueError(
+                f"Unknown parser: {parser!r} (expected 'deterministic' or 'llm')"
+            )
+        if parser == "llm" and api_key is None:
+            raise ValueError("parser='llm' requires an OpenRouter api_key")
+
         fund_code = fund_code.upper()
-        cache_key = f"{fund_code}:{period or 'latest'}"
+        cache_key = f"{fund_code}:{period or 'latest'}:{parser}"
         current_time = time.time()
 
         # Check cache
@@ -482,8 +820,10 @@ DATA:
                 f"Failed to download PDF for file {file_id}"
             )
 
-        # Parse with LLM
-        holdings = self._parse_holdings_with_llm(pdf_data, api_key)
+        if parser == "deterministic":
+            holdings = list(self.parse_pdr_pdf(pdf_data).holdings)
+        else:
+            holdings = self._parse_holdings_with_llm(pdf_data, api_key)
 
         # Get report date from disclosure
         report_date = None
@@ -506,21 +846,23 @@ DATA:
     def get_holdings_df(
         self,
         fund_code: str,
-        api_key: str,
+        api_key: str | None = None,
         period: str | None = None,
+        parser: str = "deterministic",
     ) -> pd.DataFrame:
         """
         Get holdings as a pandas DataFrame.
 
         Args:
             fund_code: TEFAS fund code
-            api_key: OpenRouter API key for LLM parsing
+            api_key: OpenRouter API key (only used by ``parser="llm"``)
             period: Optional period in format "YYYY-MM"
+            parser: "deterministic" (default, offline) or "llm" (legacy)
 
         Returns:
             DataFrame with columns: symbol, isin, name, weight, type, country, value
         """
-        holdings = self.get_holdings(fund_code, api_key, period)
+        holdings = self.get_holdings(fund_code, api_key, period, parser=parser)
 
         if not holdings:
             return pd.DataFrame(columns=[
