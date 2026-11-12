@@ -14,10 +14,29 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
+# BIST price-limit data layer (W3a). Re-exported here so callers that already
+# import the technical toolbox get the session-level primitives too.
+from borsapy._providers.bist_limits import (
+    PriceLimits,
+    adtv,
+    adtv_diagnostics,
+    compute_price_limits,
+    flag_limit_sessions,
+    round_to_tick,
+    tick_for_price,
+)
+
 if TYPE_CHECKING:
     pass
 
 __all__ = [
+    "PriceLimits",
+    "adtv",
+    "adtv_diagnostics",
+    "compute_price_limits",
+    "flag_limit_sessions",
+    "round_to_tick",
+    "tick_for_price",
     "TechnicalAnalyzer",
     "TechnicalMixin",
     "calculate_sma",
