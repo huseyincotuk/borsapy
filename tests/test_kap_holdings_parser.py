@@ -1,10 +1,17 @@
-"""Offline tests for the deterministic PDR portfolio parser (075h).
+"""Offline tests for the deterministic PDR portfolio parser (075h + 075l).
 
-Golden values come from the 075g independent reading (seal
-``gecmis baglam/fon_hatti_smoke_2026_11_10/``: RAPOR.md §3c and the raw
-``pdf_tablo_satiri_test.json`` measurements), never from this parser's output.
-The two fixture PDFs are byte copies of the evidence PDFs; sha256/size are
-pinned below from that folder's SHA256SUMS.txt.
+Golden values come from two independent evidence seals, never from this
+parser's output:
+
+* 075g (`gecmis baglam/fon_hatti_smoke_2026_11_10/`: RAPOR.md §3c and raw
+  ``pdf_tablo_satiri_test.json``) for the BHE pins.
+* 075l discovery (`gecmis baglam/pw15b_discovery_2026_11_11/`) plus its
+  independent count ``pdr_templates_launch_2026_11_11/EK_D_BAGIMSIZ_SAYIM.md``
+  for the GBH/MUT/DDA/DDF pins.
+
+The fixture PDFs are byte copies of the sealed evidence PDFs; sha256/size are
+pinned below from the seals' SHA256SUMS.txt (BHE) and from the discovery
+folder's hashes (GBH/MUT/DDA/DDF).
 """
 
 import hashlib
@@ -18,23 +25,45 @@ import pytest
 
 from borsapy._providers.kap_holdings import (
     PDR_ISIN_RE,
+    PDR_TICKER_RE,
     Holding,
     KAPHoldingsProvider,
     PdrParseError,
     PdrParseResult,
+    PdrSilentZeroError,
     _parse_turkish_number,
+    _pdr_cell_number,
+    _pdr_nearest_owner,
+    _pdr_number_class,
+    _pdr_ticker_parts,
 )
+from borsapy.exceptions import DataNotAvailableError
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "pdr"
 PDF_44 = FIXTURE_DIR / "BHE_44_1696209.pdf"
 PDF_40 = FIXTURE_DIR / "BHE_40_1680169.pdf"
+PDF_GBH = FIXTURE_DIR / "GBH_1692815.pdf"
+PDF_MUT = FIXTURE_DIR / "MUT_1692820.pdf"
+PDF_DDA = FIXTURE_DIR / "DDA_1695047.pdf"
+PDF_DDF = FIXTURE_DIR / "DDF_1695048.pdf"
 
-# Pins copied from the 075g evidence folder SHA256SUMS.txt.
+# Pins copied from the evidence folders' SHA256SUMS.txt / discovery hashes.
 PDF_SHA256 = {
     "BHE_44_1696209.pdf": "cf4d068495f8addcb14eda8a4f581dd790a1c89b197294cea857726c1f8d0ee8",
     "BHE_40_1680169.pdf": "61f0f838d2dacecd7d7881171873cd6ba030ab0a720e622b122983b534b5f466",
+    "GBH_1692815.pdf": "f6c42666195e9bc8227d19638697eb41482f34317564927f08aae86a01daa420",
+    "MUT_1692820.pdf": "7a732e637417687df88e51f3dc7e599e2b7e833881b4cea7aae0322dbd7da736",
+    "DDA_1695047.pdf": "433ee59a147727fea0b846070a4f61ad8f84b50f13511db7cfcdc30ec3b8a527",
+    "DDF_1695048.pdf": "a19279d8ecd785c5939474b6824bc3e6c7a441921d6550a0e74c2acdc131b07f",
 }
-PDF_SIZE = {"BHE_44_1696209.pdf": 70382, "BHE_40_1680169.pdf": 70007}
+PDF_SIZE = {
+    "BHE_44_1696209.pdf": 70382,
+    "BHE_40_1680169.pdf": 70007,
+    "GBH_1692815.pdf": 76715,
+    "MUT_1692820.pdf": 63272,
+    "DDA_1695047.pdf": 66643,
+    "DDF_1695048.pdf": 66994,
+}
 
 TICKER_BLOCK_RE = re.compile(r"^[A-Z]{4,5}$")
 
@@ -446,3 +475,315 @@ class TestGetHoldingsWiring:
             mock.assert_called_once_with(
                 "TEST", "fake-api-key", None, parser="llm"
             )
+
+
+# ---------------------------------------------------------------------------
+# 075l — template expansion pins (`.E` suffix + Deniz-type column awareness)
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def result_gbh(provider: KAPHoldingsProvider) -> PdrParseResult:
+    return provider.parse_pdr_pdf(PDF_GBH.read_bytes())
+
+
+@pytest.fixture(scope="module")
+def result_mut(provider: KAPHoldingsProvider) -> PdrParseResult:
+    return provider.parse_pdr_pdf(PDF_MUT.read_bytes())
+
+
+@pytest.fixture(scope="module")
+def result_dda(provider: KAPHoldingsProvider) -> PdrParseResult:
+    return provider.parse_pdr_pdf(PDF_DDA.read_bytes())
+
+
+@pytest.fixture(scope="module")
+def result_ddf(provider: KAPHoldingsProvider) -> PdrParseResult:
+    return provider.parse_pdr_pdf(PDF_DDF.read_bytes())
+
+
+class TestDiscoveryFixtures:
+    """The four 075l fixtures are untouched byte copies of the seal PDFs."""
+
+    def test_fixture_sha256_and_size_pinned(self):
+        for path in (PDF_GBH, PDF_MUT, PDF_DDA, PDF_DDF):
+            data = path.read_bytes()
+            assert len(data) == PDF_SIZE[path.name]
+            assert hashlib.sha256(data).hexdigest() == PDF_SHA256[path.name]
+
+    def test_fixtures_start_with_pdf_marker(self):
+        for path in (PDF_GBH, PDF_MUT, PDF_DDA, PDF_DDF):
+            assert path.read_bytes().startswith(b"%PDF-")
+
+
+class TestUsFormatTemplate:
+    """Pin 1-2: `.E` suffix template (GBH/MUT), US number format."""
+
+    def test_gbh_holdings_meet_independent_count(self, result_gbh):
+        # EK-D independent count: 33 distinct ISINs, 31 distinct `.E` tickers.
+        assert len(result_gbh.holdings) >= 30
+        assert len({h.isin for h in result_gbh.holdings}) >= 30
+
+    def test_gbh_akbnk_suffix_stripped_and_us_number(self, result_gbh):
+        akbnk = [h for h in result_gbh.holdings if h.symbol == "AKBNK"]
+        assert akbnk
+        # EK-D geometry: AKBNK.E row prints nominal 100,000.00 (US format).
+        assert any(h.nominal_value == 100000.0 for h in akbnk)
+        assert any(h.market_value == 6090000.0 for h in akbnk)
+        assert all(h.isin and PDR_ISIN_RE.fullmatch(h.isin) for h in akbnk)
+        # The source suffix is preserved in notes, the symbol is clean.
+        assert all(h.notes == "source_ticker=AKBNK.E" for h in akbnk)
+        assert all("." not in h.symbol for h in result_gbh.holdings)
+
+    def test_gbh_all_symbols_have_no_suffix(self, result_gbh):
+        assert result_gbh.holdings
+        for holding in result_gbh.holdings:
+            assert re.fullmatch(r"[A-Z]{3,6}", holding.symbol)
+
+    def test_mut_holdings_positive_no_silent_zero(self, result_mut):
+        # EK-D independent count: 28 distinct ISINs / 26 `.E` tickers.
+        assert result_mut.holdings
+        assert len(result_mut.holdings) > 0
+
+    def test_gbh_unparsed_row_carries_out_of_band_isin(self, result_gbh):
+        # BIGCH rows print their weight into a column the header cannot
+        # resolve, so they must surface as unparsed rather than vanish.
+        assert any("TREBIGC00011" in row for row in result_gbh.unparsed_rows)
+
+
+class TestDenizTemplate:
+    """Pin 4-5: Deniz-type column-aware block detection (DDA/DDF)."""
+
+    def test_dda_holdings_beat_pilot(self, result_dda):
+        # Pilot parsed 5 of the 9 ISINs; the loss must now be < 44 %.
+        assert len(result_dda.holdings) >= 5
+        assert len({h.isin for h in result_dda.holdings}) >= 5
+        assert len({h.isin for h in result_dda.holdings}) / 9 > 0.56
+
+    def test_dda_garan_halkb_isins_are_distinct(self, result_dda):
+        by_symbol = {h.symbol: h for h in result_dda.holdings}
+        # EK-D geometry: naive 22 pt window matches GARAN with HALKB's ISIN.
+        assert "GARAN" in by_symbol and "HALKB" in by_symbol
+        assert by_symbol["GARAN"].isin == "TRAGARAN91N1"
+        assert by_symbol["HALKB"].isin == "TRETHAL00019"
+
+    def test_ddf_holdings_positive(self, result_ddf):
+        assert len(result_ddf.holdings) >= 4
+        assert len({h.isin for h in result_ddf.holdings}) >= 4
+
+    def test_bhe_regression_guard(self, result_44):
+        # Existing BHE pins must not move under the new matching.
+        assert result_44.page_count == 3
+        asels = _by_isin(result_44, "TRAASELS91H2")
+        assert asels.symbol == "ASELS"
+        assert asels.nominal_value == 23294.0
+        assert asels.weight == 24.42
+        assert _by_isin(result_44, "TRAAKBNK91N6").symbol == "AKBNK"
+        assert not any("TOPLAM" in h.symbol.upper() for h in result_44.holdings)
+
+
+class TestSuffixRule:
+    """Pin: the suffix is accepted, stripped, and never a parse trigger."""
+
+    def test_ticker_regex_accepts_suffix(self):
+        assert PDR_TICKER_RE.fullmatch("AKBNK.E")
+        assert PDR_TICKER_RE.fullmatch("AKBNK")
+        assert PDR_TICKER_RE.fullmatch("SSAAT.EL")
+
+    def test_ticker_regex_rejects_header_tokens(self):
+        # `A.PAY` is a table header, not a ticker; only 1-2 letter suffixes.
+        assert PDR_TICKER_RE.fullmatch("A.PAY") is None
+        assert PDR_TICKER_RE.fullmatch("AKBNK.ABC") is None
+        assert PDR_TICKER_RE.fullmatch("TOPLAM.E") is not None  # shape only
+
+    def test_symbol_output_strips_suffix(self):
+        assert _pdr_ticker_parts("AKBNK.E") == ("AKBNK", "AKBNK.E")
+        assert _pdr_ticker_parts("AKBNK") == ("AKBNK", None)
+        assert _pdr_ticker_parts("SSAAT.EL") == ("SSAAT", "SSAAT.EL")
+
+    def test_suffix_without_numeric_block_is_not_a_holding(self, result_44):
+        # BHE has no `.E` tickers; suffix shape alone never creates a holding.
+        assert all(h.isin for h in result_44.holdings)
+        assert all(h.notes is None for h in result_44.holdings)
+
+
+class TestNumberFormatDiscovery:
+    """Pin 8: mixed Turkish/US cells yield None (never an invented value)."""
+
+    def test_mixed_format_cell_returns_none(self):
+        assert _pdr_cell_number("1.234,56", "us") is None
+        assert _pdr_cell_number("1,234.56", "tr") is None
+
+    def test_matching_format_is_read(self):
+        assert _pdr_cell_number("100,000.00", "us") == 100000.0
+        assert _pdr_cell_number("100.000,00", "tr") == 100000.0
+
+    def test_ambiguous_classification_is_none(self):
+        # On its own the cell could be either format; without a discovered
+        # column format nothing is read (no guess).
+        assert _pdr_number_class("100,000") is None
+        assert _pdr_number_class("1.234") is None
+        assert _pdr_cell_number("100,000", None) is None
+        # With the column discovered as US the same cell is unambiguous.
+        assert _pdr_cell_number("100,000", "us") == 100000.0
+
+    def test_unknown_column_format_returns_none(self):
+        assert _pdr_cell_number("100,000.00", None) is None
+
+
+class TestSilentZeroGuard:
+    """Pin 6-7: silent zero fails loud; ambiguous neighbours stay unparsed."""
+
+    def test_silent_zero_raises_pdr_parse_error(self):
+        with pytest.raises(PdrSilentZeroError):
+            KAPHoldingsProvider._pdr_check_silent_zero(3, [], [])
+
+    def test_silent_zero_is_not_data_not_available(self):
+        assert issubclass(PdrSilentZeroError, PdrParseError)
+        assert not issubclass(PdrSilentZeroError, DataNotAvailableError)
+
+    def test_no_contradiction_when_rows_become_unparsed(self):
+        # ISIN rows that landed in unparsed_rows are not a silent zero.
+        KAPHoldingsProvider._pdr_check_silent_zero(3, [], ["ISIN row"])
+
+    def test_no_contradiction_when_holdings_exist(self):
+        holding = Holding(
+            symbol="ASELS",
+            isin="TRAASELS91H2",
+            name=None,
+            weight=1.0,
+            holding_type="stock",
+        )
+        KAPHoldingsProvider._pdr_check_silent_zero(3, [holding], [])
+
+    def test_equal_distance_neighbour_is_ambiguous(self):
+        # Pin 9: two owners exactly 5 pt apart on either side -> no guess.
+        owners = [{"y": 100.0}, {"y": 110.0}]
+        best, ambiguous = _pdr_nearest_owner(owners, 105.0, 24.0)
+        assert best is None
+        assert ambiguous is True
+
+    def test_unique_neighbour_is_selected(self):
+        owners = [{"y": 100.0}, {"y": 110.0}]
+        best, ambiguous = _pdr_nearest_owner(owners, 108.0, 24.0)
+        assert best is owners[1]
+        assert ambiguous is False
+
+    def test_too_far_neighbour_is_not_selected(self):
+        owners = [{"y": 100.0}]
+        best, ambiguous = _pdr_nearest_owner(owners, 140.0, 24.0)
+        assert best is None
+        assert ambiguous is False
+
+
+class TestDiscoveryDeterminism:
+    """Pin 10: the same PDF parsed twice is byte-identical in content."""
+
+    def test_same_gbh_twice_is_identical(self, provider):
+        first = provider.parse_pdr_pdf(PDF_GBH.read_bytes())
+        second = provider.parse_pdr_pdf(PDF_GBH.read_bytes())
+        assert first == second
+        assert first.holdings == second.holdings
+        assert first.unparsed_rows == second.unparsed_rows
+
+    def test_same_dda_twice_is_identical(self, provider):
+        first = provider.parse_pdr_pdf(PDF_DDA.read_bytes())
+        second = provider.parse_pdr_pdf(PDF_DDA.read_bytes())
+        assert first == second
+
+
+# ---------------------------------------------------------------------------
+# Row-level routing tests (075l2 review u-REQ-003)
+#
+# The two ambiguity pins are asserted at ROW level here: a synthetic PDF is
+# built with the offending geometry and the assertion is that the offending
+# row lands in ``unparsed_rows`` (not merely that a helper returns None).
+# ---------------------------------------------------------------------------
+
+_SYN_HEADER = (
+    (370, 100, "NOMINAL"),
+    (410, 100, "DEGER"),
+    (450, 100, "BIRIM"),
+    (480, 100, "FIYAT"),
+    (560, 100, "TOPLAM"),
+    (600, 100, "DEGER"),
+    (660, 100, "TOPLAM"),
+    (700, 100, "(FPD"),
+    (730, 100, "GORE)"),
+)
+
+#: Three clean Turkish-format rows; enough to make band discovery succeed.
+_SYN_CLEAN_ROWS = (
+    ("AKBNK", "TRAAKBNK91N6", "100.000,00", "50,00", "5.000.000,00", "10,00"),
+    ("ASELS", "TRAASELS91H2", "50.000,00", "60,00", "3.000.000,00", "6,00"),
+    ("BIMAS", "TREBIMM00018", "10.000,00", "70,00", "700.000,00", "1,40"),
+)
+
+
+def _syn_right_text(page, right: float, y: float, text: str, size: int = 8) -> None:
+    """Insert right-aligned text (PDR columns are printed right-aligned)."""
+    width = pymupdf.get_text_length(text, fontname="helv", fontsize=size)
+    page.insert_text((right - width, y), text, fontsize=size)
+
+
+def _syn_build_pdf(extra_items, tmp_path: Path, name: str) -> bytes:
+    """Build a one-page synthetic PDR table: header + clean rows + extras."""
+    items = list(_SYN_HEADER)
+    y = 140
+    for ticker, isin, nominal, price, value, weight in _SYN_CLEAN_ROWS:
+        items += [
+            (40, y, ticker), (200, y, isin), (370, y, nominal),
+            (480, y, price), (560, y, value), (660, y, weight),
+        ]
+        y += 20
+    items += list(extra_items)
+
+    doc = pymupdf.open()
+    page = doc.new_page(width=900, height=1200)
+    for right, item_y, text in items:
+        _syn_right_text(page, right, item_y, text)
+    path = tmp_path / name
+    doc.save(path)
+    doc.close()
+    return path.read_bytes()
+
+
+def test_mixed_format_row_lands_in_unparsed_rows(tmp_path):
+    """A US-format cell inside a Turkish column must reach unparsed_rows."""
+    extra = (
+        (40, 200, "KCHOL"), (200, 200, "TRAKCHOL91Q8"),
+        (370, 200, "30,000.00"),  # US format inside a Turkish nominal column
+        (480, 200, "80,00"), (560, 200, "2.400.000,00"), (660, 200, "3,00"),
+    )
+    data = _syn_build_pdf(extra, tmp_path, "mixed.pdf")
+
+    result = KAPHoldingsProvider().parse_pdr_pdf(data)
+
+    # Row-level assertion: the offending row is carried in unparsed_rows.
+    assert any("KCHOL" in row for row in result.unparsed_rows)
+    # And it never becomes a fabricated holding.
+    assert "KCHOL" not in {holding.symbol for holding in result.holdings}
+    # With one ambiguous cell the whole column format is unknown, so nothing
+    # is guessed: no holding is produced from this page.
+    assert result.holdings == ()
+
+
+def test_equal_distance_neighbour_row_lands_in_unparsed_rows(tmp_path):
+    """A numeric block equidistant from two tickers must not steal either."""
+    extra = (
+        # Two tickers 10 pt apart; the numeric block sits exactly between them.
+        (40, 220, "KCHOL"), (200, 220, "TRAKCHOL91Q8"),
+        (40, 230, "TOASO"), (200, 230, "TRATOASO91H3"),
+        (370, 225, "30.000,00"), (480, 225, "80,00"),
+        (560, 225, "2.400.000,00"), (660, 225, "3,00"),
+    )
+    data = _syn_build_pdf(extra, tmp_path, "tie.pdf")
+
+    result = KAPHoldingsProvider().parse_pdr_pdf(data)
+
+    symbols = {holding.symbol for holding in result.holdings}
+    # Row-level assertion: neither tied ticker is claimed by the shared block.
+    assert "KCHOL" not in symbols
+    assert "TOASO" not in symbols
+    assert any("KCHOL" in row for row in result.unparsed_rows)
+    assert any("TOASO" in row or "TRATOASO91H3" in row for row in result.unparsed_rows)
+    # The three unambiguous rows above stay parsed (no collateral damage).
+    assert {"AKBNK", "ASELS", "BIMAS"} <= symbols

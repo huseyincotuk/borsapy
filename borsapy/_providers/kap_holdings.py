@@ -13,6 +13,7 @@ Two parsing paths exist:
 
 import json
 import re
+import statistics
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -33,16 +34,18 @@ CACHE_DURATION = 3600  # 1 hour
 OPENROUTER_MODEL = "google/gemini-3-flash-preview"
 
 # ---------------------------------------------------------------------------
-# Deterministic PDR parser constants (BHE-tipi Ak Portföy şablonu)
+# Deterministic PDR parser (template-independent).
 #
-# Source: 075g evidence (seal `gecmis baglam/fon_hatti_smoke_2026_11_10/`),
-# measured on BHE donem=44 (idx 1696209) and donem=40 (idx 1680169).
-# These x-bands are the column boundaries of that template as printed on the
-# page. Other templates (ROTA/ONE/Deniz, bank/insurance, VIOP funds) were NOT
-# measured; behaviour there is UNVERIFIED.
+# The 075g fixed x-bands below are kept only for the legacy helper methods;
+# ``parse_pdr_pdf`` no longer uses them. Column geometry is now discovered per
+# PDF from the printed header labels (see ``_discover_pdr_columns``), because
+# the 075l discovery seal (`gecmis baglam/pw15b_discovery_2026_11_11/`)
+# measured three templates whose columns sit fully outside those bands.
 # ---------------------------------------------------------------------------
 PDR_ISIN_RE = re.compile(r"[A-Z]{2}[A-Z0-9]{9}[0-9]")
-PDR_TICKER_RE = re.compile(r"[A-Z]{3,6}")
+#: BIST ticker, optionally carrying the PDR template's `.E` lot suffix
+#: (one or two letters only; `.PAY`-style header tokens are not tickers).
+PDR_TICKER_RE = re.compile(r"[A-Z]{3,6}(?:\.[A-Z]{1,2})?")
 PDR_PERIOD_RE = re.compile(r"(\d{2}/\d{2}/\d{4})\s*-\s*(\d{2}/\d{2}/\d{4})")
 
 #: y grouping tolerance (points), same value used by the 075g measurement.
@@ -50,7 +53,17 @@ PDR_ROW_TOLERANCE = 2.5
 #: a holding's fields may sit on neighbouring y-lines (multi-line blocks and
 #: small y drift), so tokens within this window of the ISIN anchor are merged.
 PDR_ROW_WINDOW = 9.0
+#: how far a ticker row / numeric block may sit from its owner row (measured
+#: Deniz-type maximum is 22 pt; a larger window steals neighbouring ISINs).
+PDR_OWNER_WINDOW = 24.0
+#: numeric tokens closer than this on the x axis belong to one column.
+PDR_COLUMN_GAP = 3.0
+#: default half-width of a discovered column band.
+PDR_COLUMN_TOLERANCE = 6.0
+#: a header label may be split over at most this horizontal span.
+PDR_HEADER_SPAN = 60.0
 
+#: 075g BHE bands — retained for the legacy helper methods only.
 PDR_BAND_TICKER = (0.0, 60.0)       # MENKUL KIYMET CİNSİ karşılığı ticker
 PDR_BAND_CURRENCY = (60.0, 115.0)   # DÖVİZ CİNSİ (TL)
 PDR_BAND_NAME = (115.0, 205.0)      # İHRAÇCI KURUM (kurum adı)
@@ -62,9 +75,212 @@ PDR_BAND_WEIGHT = (838.0, 882.0)    # TOPLAM (FPD GÖRE) — ağırlık %
 
 PDR_CURRENCY_TOKENS = frozenset({"TL", "USD", "EUR", "GBP", "CHF", "JPY"})
 
+_PDR_NUMBER_TOKEN_RE = re.compile(r"%?[+-]?\d[\d.,]*%?")
+_PDR_NUMBER_BODY_RE = re.compile(r"[+-]?\d[\d.,]*")
+_PDR_FOLD_TABLE = str.maketrans(
+    "İIŞĞÜÖÇıişğüöç", "IISGUOCIisguoc"
+)
+
 
 class PdrParseError(ValueError):
     """Raised when a PDR PDF payload cannot be parsed deterministically."""
+
+
+class PdrSilentZeroError(PdrParseError):
+    """Raised when ISIN rows exist but no holding and no unparsed row came out."""
+
+
+def _pdr_fold(text: str) -> str:
+    """Turkish-aware upper-case fold for header labels."""
+    return text.translate(_PDR_FOLD_TABLE).upper()
+
+
+def _pdr_is_number_token(text: str) -> bool:
+    """True when the token is a plain printed number (no date, no ISIN)."""
+    stripped = text.strip()
+    if re.fullmatch(r"\d{2}[./]\d{2}[./]\d{2,4}", stripped):
+        return False
+    return bool(_PDR_NUMBER_TOKEN_RE.fullmatch(stripped)) and any(
+        char.isdigit() for char in stripped
+    )
+
+
+def _pdr_number_class(text: str) -> str | None:
+    """
+    Classify a printed number as ``"tr"``, ``"us"`` or ``None`` (ambiguous).
+
+    The classification only carries evidence from the separators themselves;
+    it never guesses. A token with no separators yields None (any format can
+    read an integer), and a token that could be read either way (e.g.
+    ``"100,000"`` or ``"1.234"``) also yields None.
+    """
+    body = text.strip().replace("%", "").replace(" ", "")
+    if not _PDR_NUMBER_BODY_RE.fullmatch(body):
+        return None
+    body = body.lstrip("+-")
+    if not body or not body[0].isdigit():
+        return None
+    has_dot = "." in body
+    has_comma = "," in body
+    if has_dot and has_comma:
+        return "us" if body.rfind(".") > body.rfind(",") else "tr"
+    if has_comma:
+        parts = body.split(",")
+        if len(parts) > 2:
+            # Multiple commas can only be US thousands separators.
+            return "us"
+        left, right = parts
+        if len(left) <= 3 and len(right) == 3:
+            return None
+        return "tr"
+    if has_dot:
+        parts = body.split(".")
+        if len(parts) > 2:
+            # Multiple dots can only be Turkish thousands separators.
+            return "tr"
+        left, right = parts
+        if len(left) <= 3 and len(right) == 3:
+            return None
+        return "us"
+    return None
+
+
+def _pdr_parse_number(text: str, fmt: str) -> float | None:
+    """Read one cell with an already-discovered column format (no guessing)."""
+    body = text.strip().replace("%", "").replace(" ", "")
+    if not _PDR_NUMBER_BODY_RE.fullmatch(body):
+        return None
+    try:
+        if fmt == "tr":
+            if "," in body:
+                body = body.replace(".", "").replace(",", ".")
+            else:
+                body = body.replace(".", "")
+        else:
+            body = body.replace(",", "")
+        return float(body)
+    except ValueError:
+        return None
+
+
+def _pdr_cell_number(text: str, fmt: str | None) -> float | None:
+    """
+    Parse one numeric cell under the discovered column format.
+
+    Returns None (never an invented value) when the column format is unknown
+    or when the cell's own format contradicts it (Turkish/US mix in one row).
+    """
+    if fmt is None:
+        return None
+    cell_class = _pdr_number_class(text)
+    if cell_class is not None and cell_class != fmt:
+        return None
+    return _pdr_parse_number(text, fmt)
+
+
+@dataclass(frozen=True)
+class _PdrCluster:
+    """One x-column discovered from the page's printed numbers."""
+
+    center: float
+    low: float
+    high: float
+    texts: tuple[str, ...]
+
+    @property
+    def count(self) -> int:
+        return len(self.texts)
+
+    @property
+    def tolerance(self) -> float:
+        return max(PDR_COLUMN_TOLERANCE, (self.high - self.low) / 2 + 2.0)
+
+
+@dataclass(frozen=True)
+class _PdrColumns:
+    """Per-PDF column geometry, derived from the data (no fixed positions)."""
+
+    ticker_center: float
+    ticker_tolerance: float
+    isin_center: float
+    name_band: tuple[float, float]
+    nominal: _PdrCluster | None
+    price: _PdrCluster | None
+    value: _PdrCluster | None
+    weight: _PdrCluster | None
+    formats: dict[str, str | None]
+
+    @property
+    def discovered(self) -> bool:
+        return self.nominal is not None and self.value is not None and self.weight is not None
+
+
+def _pdr_cluster_tokens(
+    tokens: list[tuple[float, float, float, str]],
+    gap: float = PDR_COLUMN_GAP,
+) -> list[_PdrCluster]:
+    """Group tokens into x-columns by their right edge (mod/median centre)."""
+    if not tokens:
+        return []
+    ordered = sorted(tokens, key=lambda token: token[2])
+    groups: list[list[tuple[float, float, float, str]]] = [[ordered[0]]]
+    for token in ordered[1:]:
+        if token[2] - groups[-1][-1][2] <= gap:
+            groups[-1].append(token)
+        else:
+            groups.append([token])
+    clusters: list[_PdrCluster] = []
+    for group in groups:
+        edges = [token[2] for token in group]
+        clusters.append(
+            _PdrCluster(
+                center=statistics.median(edges),
+                low=min(edges),
+                high=max(edges),
+                texts=tuple(token[3] for token in group),
+            )
+        )
+    return clusters
+
+
+def _pdr_ticker_parts(raw: str) -> tuple[str, str | None]:
+    """``AKBNK.E`` -> ``("AKBNK", "AKBNK.E")``; plain ticker -> ``(raw, None)``."""
+    if "." in raw:
+        return raw.split(".", 1)[0], raw
+    return raw, None
+
+
+def _pdr_nearest_owner(
+    owners: list[Any], y: float, window: float
+) -> tuple[Any | None, bool]:
+    """
+    Pick the nearest owner row on the y axis.
+
+    Returns ``(owner, ambiguous)``. An exact tie between the two closest rows
+    yields ``(None, True)``: neighbouring theft is never resolved by guessing,
+    the caller must route the row to ``unparsed_rows``.
+    """
+    candidates = [owner for owner in owners if abs(owner["y"] - y) <= window]
+    if not candidates:
+        return None, False
+    candidates.sort(key=lambda owner: abs(owner["y"] - y))
+    if (
+        len(candidates) > 1
+        and abs(abs(candidates[1]["y"] - y) - abs(candidates[0]["y"] - y)) < 0.01
+    ):
+        return None, True
+    return candidates[0], False
+
+
+def _pdr_column_format(cluster: _PdrCluster | None) -> str | None:
+    """Discover one column's number format; conflicting evidence -> None."""
+    if cluster is None:
+        return None
+    votes = {_pdr_number_class(text) for text in cluster.texts}
+    votes.discard(None)
+    if len(votes) == 1:
+        return votes.pop()
+    return None
 
 
 def _parse_turkish_number(text: str) -> float | None:
@@ -105,6 +321,7 @@ class Holding:
     nominal_value: float | None = None
     market_value: float | None = None
     unit_price: float | None = None
+    notes: str | None = None
 
 
 @dataclass(frozen=True)
@@ -328,6 +545,343 @@ class KAPHoldingsProvider(BaseProvider):
         """Visual rows of a page as plain word lists (evidence-compatible)."""
         return [[token[2] for token in row] for row in self._pdr_rows(page)]
 
+    # ------------------------------------------------------------------
+    # 075l: per-PDF column discovery (data-derived, no fixed x positions)
+    # ------------------------------------------------------------------
+    def _pdr_word_rows(self, page) -> list[list[tuple[float, float, float, str]]]:
+        """Visual rows of a page as ``(x0, y0, x1, text)`` tokens."""
+        buckets: dict[int, list[tuple[float, float, float, str]]] = {}
+        for x0, y0, x1, _y1, text, *_ in page.get_text("words"):
+            key = int(round(y0 / PDR_ROW_TOLERANCE))
+            buckets.setdefault(key, []).append((x0, y0, x1, text))
+        return [
+            sorted(buckets[key], key=lambda token: (token[0], token[1], token[3]))
+            for key in sorted(buckets)
+        ]
+
+    @staticmethod
+    def _pdr_row_y(row: list[tuple[float, float, float, str]]) -> float:
+        return sum(token[1] for token in row) / len(row) if row else 0.0
+
+    @staticmethod
+    def _pdr_in_cluster(
+        token: tuple[float, float, float, str], cluster: _PdrCluster | None
+    ) -> bool:
+        if cluster is None:
+            return False
+        return abs(token[2] - cluster.center) <= cluster.tolerance
+
+    @staticmethod
+    def _pdr_ticker_parts(raw: str) -> tuple[str, str | None]:
+        """``AKBNK.E`` -> ``("AKBNK", "AKBNK.E")``; plain ticker -> ``(raw, None)``."""
+        return _pdr_ticker_parts(raw)
+
+    def _discover_pdr_columns(
+        self,
+        pages: list[list[list[tuple[float, float, float, str]]]],
+    ) -> _PdrColumns | None:
+        """
+        Derive the table's column geometry from the page itself.
+
+        Numeric tokens are clustered by their right edge (the printed columns
+        are right-aligned), the header labels are located on the page and each
+        label is then mapped to its cluster. Every band is therefore measured
+        per PDF; nothing is assumed about where a template prints a column.
+        """
+        all_tokens = [token for rows in pages for row in rows for token in row]
+        page_ys = [[self._pdr_row_y(row) for row in rows] for rows in pages]
+        numeric = [token for token in all_tokens if _pdr_is_number_token(token[3])]
+        clusters = _pdr_cluster_tokens(numeric)
+
+        isin_tokens = [
+            token for token in all_tokens if PDR_ISIN_RE.fullmatch(token[3])
+        ]
+        if not isin_tokens:
+            return None
+        isin_clusters = _pdr_cluster_tokens(
+            [(token[0], token[1], token[0], token[3]) for token in isin_tokens]
+        )
+        isin_cluster = max(
+            isin_clusters, key=lambda cluster: (cluster.count, cluster.center)
+        )
+        isin_center = isin_cluster.center
+
+        # The ticker column is the leftmost dense column of ticker-shaped words.
+        ticker_candidates = [
+            token
+            for token in all_tokens
+            if token[0] < isin_center - 40.0 and PDR_TICKER_RE.fullmatch(token[3])
+        ]
+        if not ticker_candidates:
+            return None
+        ticker_clusters = _pdr_cluster_tokens(
+            [(token[0], token[1], token[0], token[3]) for token in ticker_candidates]
+        )
+        # The ticker column is the leftmost dense block of ticker-shaped words
+        # (the printed table always starts with MENKUL KIYMET CİNSİ).
+        ticker_cluster = min(
+            (cluster for cluster in ticker_clusters if cluster.count >= 3),
+            key=lambda cluster: cluster.center,
+        )
+        ticker_center = ticker_cluster.center
+        ticker_tolerance = max(PDR_COLUMN_TOLERANCE, ticker_cluster.tolerance)
+
+        def block_anchors(
+            tokens: list[tuple[float, float, float, str]],
+        ) -> dict[str, list[tuple[int, float]]]:
+            """Locate labels inside a header block (labels may wrap in y)."""
+            found: dict[str, list[tuple[int, float]]] = {
+                "nominal": [],
+                "price": [],
+                "value": [],
+                "weight": [],
+            }
+            ordered = sorted(tokens, key=lambda token: (token[0], token[1]))
+            for index, token in enumerate(ordered):
+                fold = _pdr_fold(token[3])
+                if fold.startswith("NOMINAL"):
+                    for follower in ordered[index + 1:]:
+                        if follower[0] - token[0] > PDR_HEADER_SPAN:
+                            break
+                        if abs(follower[1] - token[1]) > 15.0:
+                            continue
+                        if _pdr_fold(follower[3]).startswith("DEGER"):
+                            found["nominal"].append((10, follower[2]))
+                            break
+                if fold.startswith("BIRIM"):
+                    for follower in ordered[index + 1:]:
+                        if follower[0] - token[0] > PDR_HEADER_SPAN + 30:
+                            break
+                        if abs(follower[1] - token[1]) > 15.0:
+                            continue
+                        if _pdr_fold(follower[3]).startswith(("FIYAT", "FYT")):
+                            found["price"].append((10, follower[2]))
+                            break
+                if fold.startswith("TOPLAM"):
+                    for follower in ordered[index + 1:]:
+                        if follower[0] - token[0] > PDR_HEADER_SPAN:
+                            break
+                        if abs(follower[1] - token[1]) > 15.0:
+                            continue
+                        follower_fold = _pdr_fold(follower[3])
+                        if follower_fold.startswith("DEGER"):
+                            found["value"].append((10, follower[2]))
+                            break
+                        if follower[3].startswith("(") and (
+                            "FPD" in follower_fold or "FTD" in follower_fold
+                        ):
+                            priority = 1 if "FPD" in follower_fold else 5
+                            found["weight"].append((priority, follower[2]))
+                if fold.startswith("TOPLAM%"):
+                    found["weight"].append((15, token[2]))
+                elif fold.startswith("GRUP%"):
+                    found["weight"].append((20, token[2]))
+            return found
+
+        # The holding table's header is the block that prints a NOMİNAL label
+        # to the right of the ISIN column; labels may wrap over a few lines
+        # (e.g. TOPLAM / (FPD GÖRE)), so a small y-window is the unit. The
+        # block that resolves the most roles wins, which keeps secondary
+        # repo/VIOP summary tables out.
+        header_anchors: dict[str, list[tuple[int, float]]] = {
+            "nominal": [],
+            "price": [],
+            "value": [],
+            "weight": [],
+        }
+        best_score = -1
+        for page_index, rows in enumerate(pages):
+            for row_index, row in enumerate(rows):
+                if not any(
+                    token[0] > isin_center + 15.0
+                    and _pdr_fold(token[3]).startswith("NOMINAL")
+                    for token in row
+                ):
+                    continue
+                anchor_y = page_ys[page_index][row_index]
+                block_tokens = [
+                    token
+                    for other_row, other_y in zip(rows, page_ys[page_index], strict=False)
+                    if abs(other_y - anchor_y) <= 15.0
+                    for token in other_row
+                ]
+                block = block_anchors(block_tokens)
+                score = sum(
+                    1 for role in ("nominal", "value", "weight") if block[role]
+                ) + (1 if block["price"] else 0)
+                if score > best_score:
+                    best_score = score
+                    header_anchors = block
+                if best_score >= 4:
+                    break
+            if best_score >= 4:
+                break
+        anchors = header_anchors
+        if not anchors["nominal"]:
+            for rows in pages:
+                for row in rows:
+                    found = block_anchors(row)
+                    for role in anchors:
+                        anchors[role].extend(found[role])
+
+        def map_anchor(anchor: float) -> _PdrCluster | None:
+            dense = [cluster for cluster in clusters if cluster.count >= 2]
+            if not dense:
+                return None
+            best = min(dense, key=lambda cluster: (abs(cluster.center - anchor), -cluster.count))
+            return best if abs(best.center - anchor) <= 40.0 else None
+
+        def pick(role: str) -> _PdrCluster | None:
+            mapped = []
+            for priority, anchor in anchors[role]:
+                cluster = map_anchor(anchor)
+                if cluster is not None:
+                    mapped.append((priority, abs(cluster.center - anchor), cluster))
+            if mapped:
+                return min(mapped, key=lambda item: (item[0], item[1]))[2]
+            return None
+
+        nominal = pick("nominal")
+        value = pick("value")
+        weight = pick("weight")
+        price = pick("price")
+
+        # Fallback: derive the bands from the numeric clusters themselves when
+        # a header label is absent. Still measured from this PDF's data.
+        dense = [cluster for cluster in clusters if cluster.count >= 2]
+        non_percent = [
+            cluster
+            for cluster in dense
+            if not any("%" in text for text in cluster.texts)
+        ]
+
+        def magnitude(cluster: _PdrCluster) -> float:
+            values = []
+            for text in cluster.texts:
+                parsed = _pdr_parse_number(text, _pdr_number_class(text) or "tr")
+                if parsed is not None:
+                    values.append(abs(parsed))
+            return statistics.median(values) if values else 0.0
+
+        right_of_isin = [
+            cluster for cluster in non_percent if cluster.center > isin_center + 15.0
+        ]
+        if nominal is None and right_of_isin:
+            nominal = min(right_of_isin, key=lambda cluster: cluster.center)
+        if value is None and right_of_isin:
+            value = max(right_of_isin, key=magnitude)
+        if weight is None:
+            percent = [
+                cluster
+                for cluster in dense
+                if any("%" in text for text in cluster.texts)
+            ]
+            if percent:
+                weight = max(percent, key=lambda cluster: cluster.center)
+        if price is None and nominal is not None and value is not None:
+            between = [
+                cluster
+                for cluster in non_percent
+                if nominal.center < cluster.center < value.center
+            ]
+            if between:
+                price = min(between, key=lambda cluster: cluster.center)
+
+        formats = {
+            role: _pdr_column_format(cluster)
+            for role, cluster in (
+                ("nominal", nominal),
+                ("price", price),
+                ("value", value),
+                ("weight", weight),
+            )
+        }
+        name_band = (ticker_center + 25.0, isin_center - 8.0)
+        return _PdrColumns(
+            ticker_center=ticker_center,
+            ticker_tolerance=ticker_tolerance,
+            isin_center=isin_center,
+            name_band=name_band,
+            nominal=nominal,
+            price=price,
+            value=value,
+            weight=weight,
+            formats=formats,
+        )
+
+    @staticmethod
+    def _pdr_owner_name(
+        rows: list[list[tuple[float, float, float, str]]],
+        row_ys: list[float],
+        owner_y: float,
+        next_owner_y: float | None,
+        name_band: tuple[float, float],
+        isin_y: float,
+        ticker_band: tuple[float, float],
+    ) -> str | None:
+        """
+        Assemble the issuer name that belongs to one owner row.
+
+        Only rows between the previous and the next ticker row are used, so a
+        neighbour's name is never merged in. Tokens printed in the ticker
+        column are skipped (they belong to another holding), while the issuer
+        name's own first word — which may repeat the ticker — is kept.
+        """
+        lower = owner_y - 4.0
+        upper = (next_owner_y - 4.0) if next_owner_y is not None else isin_y + 15.0
+        name_tokens: list[tuple[float, float, float, str]] = []
+        extra_alpha = False
+        for row, y in zip(rows, row_ys, strict=False):
+            if not (lower <= y <= upper):
+                continue
+            if y > isin_y + 3.0 and any(
+                PDR_ISIN_RE.fullmatch(token[3]) for token in row
+            ):
+                # Another ISIN block starts here (e.g. the repo table); its
+                # text must never be merged into this name.
+                break
+            if any(
+                "TOPLAM" in _pdr_fold(token[3])
+                or "GRUP" in _pdr_fold(token[3])
+                for token in row
+            ):
+                continue
+            for token in row:
+                text = token[3]
+                if not any(char.isalpha() for char in text):
+                    continue
+                if ticker_band[0] <= token[0] <= ticker_band[1]:
+                    continue
+                if PDR_ISIN_RE.fullmatch(text) or text in PDR_CURRENCY_TOKENS:
+                    continue
+                if name_band[0] <= token[0] <= name_band[1]:
+                    name_tokens.append(token)
+                else:
+                    extra_alpha = True
+        if not name_tokens or extra_alpha:
+            return None
+        name_tokens.sort(key=lambda token: (token[1], token[0], token[3]))
+        return " ".join(token[3] for token in name_tokens)
+
+    @staticmethod
+    def _pdr_check_silent_zero(
+        isin_rows: int,
+        holdings: list[Holding],
+        unparsed_rows: list[str],
+    ) -> None:
+        """
+        Fail loud on the silent-zero class (075l discovery evidence).
+
+        ISIN-bearing rows that produced neither a holding nor an unparsed entry
+        mean the geometry was misread; that contradiction must never be
+        returned as a successful empty result.
+        """
+        if isin_rows > 0 and not holdings and not unparsed_rows:
+            raise PdrSilentZeroError(
+                f"PDR contradiction: {isin_rows} ISIN row(s) produced "
+                "0 holdings and 0 unparsed rows"
+            )
+
     @staticmethod
     def _pdr_in_band(token: tuple[float, float, str], band: tuple[float, float]) -> bool:
         x0 = token[0]
@@ -469,86 +1023,302 @@ class KAPHoldingsProvider(BaseProvider):
 
             holdings: list[Holding] = []
             unparsed_rows: list[str] = []
-
+            pages: list[list[list[tuple[float, float, float, str]]]] = []
+            page_ys: list[list[float]] = []
             for page_index in range(page_count):
                 page = doc[page_index]
                 try:
-                    rows = self._pdr_rows(page)
+                    page_rows = self._pdr_word_rows(page)
                 except Exception as exc:
                     raise PdrParseError(
                         f"Could not parse page {page_index + 1}: {exc}"
                     ) from exc
+                pages.append(page_rows)
+                page_ys.append([self._pdr_row_y(row) for row in page_rows])
 
-                row_y = [
-                    sum(token[1] for token in row) / len(row) if row else 0.0
-                    for row in rows
+            isin_rows = 0
+            for rows in pages:
+                for row in rows:
+                    if any(PDR_ISIN_RE.fullmatch(token[3]) for token in row):
+                        isin_rows += 1
+
+            columns = self._discover_pdr_columns(pages)
+            if columns is None or not columns.discovered:
+                # Band discovery failed: every ISIN-bearing row is carried in
+                # unparsed_rows (never silently dropped) plus a row-count note.
+                for rows in pages:
+                    for row in rows:
+                        raw = " ".join(token[3] for token in row)
+                        if "TOPLAM" in raw.upper():
+                            continue
+                        if not any(
+                            PDR_ISIN_RE.fullmatch(token[3]) for token in row
+                        ):
+                            continue
+                        unparsed_rows.append(raw)
+                if isin_rows:
+                    unparsed_rows.append(
+                        f"[pdr] {isin_rows} ISIN row(s): column bands could not "
+                        "be discovered"
+                    )
+                self._pdr_check_silent_zero(isin_rows, holdings, unparsed_rows)
+                return PdrParseResult(
+                    holdings=tuple(holdings),
+                    unparsed_rows=tuple(unparsed_rows),
+                    page_count=page_count,
+                    period_range=period_range,
+                )
+
+            roles = {
+                "nominal": columns.nominal,
+                "price": columns.price,
+                "value": columns.value,
+                "weight": columns.weight,
+            }
+
+            def token_roles(
+                token: tuple[float, float, float, str]
+            ) -> list[str]:
+                return [
+                    role
+                    for role, cluster in roles.items()
+                    if self._pdr_in_cluster(token, cluster)
                 ]
-                consumed: set[int] = set()
 
+            # --- owner rows: a ticker with its numeric block (same row or the
+            # couple of points below it, as printed by wrapped templates) -----
+            owners: list[dict[str, Any]] = []
+            page_owners: list[list[dict[str, Any]]] = [[] for _ in pages]
+            for page_index, rows in enumerate(pages):
                 for row_index, row in enumerate(rows):
-                    if row_index in consumed:
-                        continue
+                    ticker_token = None
                     for token in row:
-                        if not self._pdr_in_band(token, PDR_BAND_ISIN):
+                        if abs(token[0] - columns.ticker_center) > columns.ticker_tolerance:
                             continue
-                        if not PDR_ISIN_RE.fullmatch(token[2]):
+                        if not PDR_TICKER_RE.fullmatch(token[3]):
                             continue
-
-                        window = [
-                            index for index, y in enumerate(row_y)
-                            if abs(y - row_y[row_index]) <= PDR_ROW_WINDOW
-                        ]
-                        if consumed.intersection(window):
+                        if _pdr_fold(token[3]) in {"TOPLAM", "GRUP"}:
                             continue
-
-                        window_tokens = [
-                            window_token
-                            for index in window
-                            for window_token in rows[index]
-                        ]
-                        tickers = sorted(
-                            (
-                                candidate for candidate in window_tokens
-                                if self._pdr_in_band(candidate, PDR_BAND_TICKER)
-                                and PDR_TICKER_RE.fullmatch(candidate[2])
-                            ),
-                            key=lambda t: (t[1], t[0], t[2]),
-                        )
-                        if not tickers:
-                            continue
-
-                        holding = self._pdr_holding_from_tokens(
-                            window_tokens, token[2], tickers[0][2]
-                        )
-                        if holding is None:
-                            continue
-
-                        holdings.append(holding)
-                        consumed.update(window)
-
-                for row_index, row in enumerate(rows):
-                    if row_index in consumed:
+                        ticker_token = token
+                        break
+                    if ticker_token is None:
                         continue
-                    raw = " ".join(token[2] for token in row)
-                    # Group/page totals never become holdings; keep them out of
-                    # the unparsed bucket as well (they are not failed rows).
+                    owner_y = page_ys[page_index][row_index]
+                    has_cell = any(
+                        (owner_y <= y <= owner_y + 4.0)
+                        and _pdr_is_number_token(token[3])
+                        and token_roles(token)
+                        for other_row, y in zip(rows, page_ys[page_index], strict=False)
+                        for token in other_row
+                    )
+                    if not has_cell:
+                        continue
+                    symbol, suffix = self._pdr_ticker_parts(ticker_token[3])
+                    owner = {
+                        "page": page_index,
+                        "row": row_index,
+                        "y": owner_y,
+                        "symbol": symbol,
+                        "raw_ticker": ticker_token[3],
+                        "suffix": suffix,
+                        "cells": {role: [] for role in roles},
+                    }
+                    owners.append(owner)
+                    page_owners[page_index].append(owner)
+
+            # --- assign numeric blocks to their nearest owner -----------------
+            ambiguous_owners: set[int] = set()
+            for page_index, rows in enumerate(pages):
+                for row in rows:
+                    for token in row:
+                        if not _pdr_is_number_token(token[3]):
+                            continue
+                        matched_roles = token_roles(token)
+                        if not matched_roles:
+                            continue
+                        best, ambiguous = _pdr_nearest_owner(
+                            page_owners[page_index],
+                            token[1],
+                            PDR_OWNER_WINDOW,
+                        )
+                        if ambiguous:
+                            # Equal distance: no guessing, both rows are unparsed.
+                            tied = [
+                                owner
+                                for owner in page_owners[page_index]
+                                if abs(owner["y"] - token[1]) <= PDR_OWNER_WINDOW
+                            ]
+                            tied.sort(key=lambda owner: abs(owner["y"] - token[1]))
+                            ambiguous_owners.update(id(owner) for owner in tied[:2])
+                            continue
+                        if best is None:
+                            continue
+                        distance = abs(best["y"] - token[1])
+                        for role in matched_roles:
+                            best["cells"][role].append((distance, token))
+
+            # --- assign ISIN rows to their nearest owner ----------------------
+            isin_owner: dict[int, list[tuple[int, int, tuple]]] = {}
+            for page_index, rows in enumerate(pages):
+                for row_index, row in enumerate(rows):
+                    for token in row:
+                        if not PDR_ISIN_RE.fullmatch(token[3]):
+                            continue
+                        best, ambiguous = _pdr_nearest_owner(
+                            page_owners[page_index],
+                            token[1],
+                            PDR_OWNER_WINDOW,
+                        )
+                        if ambiguous:
+                            tied = [
+                                owner
+                                for owner in page_owners[page_index]
+                                if abs(owner["y"] - token[1]) <= PDR_OWNER_WINDOW
+                            ]
+                            tied.sort(key=lambda owner: abs(owner["y"] - token[1]))
+                            ambiguous_owners.update(id(owner) for owner in tied[:2])
+                            continue
+                        if best is None:
+                            continue
+                        isin_owner.setdefault(id(best), []).append(
+                            (page_index, row_index, token)
+                        )
+
+            added_unparsed: set[tuple[int, int]] = set()
+
+            def add_unparsed(page_index: int, row_index: int) -> None:
+                key = (page_index, row_index)
+                if key in added_unparsed:
+                    return
+                added_unparsed.add(key)
+                raw = " ".join(
+                    token[3] for token in pages[page_index][row_index]
+                )
+                if not raw or "TOPLAM" in raw.upper():
+                    return
+                unparsed_rows.append(raw)
+
+            def owner_cell(
+                owner: dict[str, Any], role: str
+            ) -> tuple[tuple | None, bool]:
+                """Nearest cell of one column; ``(token, ambiguous)``."""
+                entries = owner["cells"][role]
+                if not entries:
+                    return None, False
+                entries = sorted(entries, key=lambda item: item[0])
+                if (
+                    len(entries) > 1
+                    and abs(entries[1][0] - entries[0][0]) < 0.01
+                ):
+                    return None, True
+                return entries[0][1], False
+
+            next_owner_y = {
+                id(owner): None for owner in owners
+            }
+            for _page_index, owner_list in enumerate(page_owners):
+                for index, owner in enumerate(owner_list):
+                    if index + 1 < len(owner_list):
+                        next_owner_y[id(owner)] = owner_list[index + 1]["y"]
+
+            consumed: list[set[int]] = [set() for _ in pages]
+            for owner in owners:
+                page_index = owner["page"]
+                assigned = isin_owner.get(id(owner), [])
+                if len(assigned) != 1 or id(owner) in ambiguous_owners:
+                    add_unparsed(page_index, owner["row"])
+                    for assigned_page, assigned_row, _token in assigned:
+                        add_unparsed(assigned_page, assigned_row)
+                    continue
+
+                isin_page, isin_row, isin_token = assigned[0]
+                cells: dict[str, float | None] = {}
+                row_failed = False
+                for role in ("nominal", "value", "weight", "price"):
+                    token, ambiguous = owner_cell(owner, role)
+                    if ambiguous:
+                        row_failed = True
+                        break
+                    if token is None:
+                        cells[role] = None
+                        continue
+                    value = _pdr_cell_number(token[3], columns.formats.get(role))
+                    if value is None:
+                        if role in ("nominal", "value", "weight"):
+                            row_failed = True
+                            break
+                        cells[role] = None
+                        continue
+                    cells[role] = value
+
+                if row_failed or cells.get("nominal") is None or cells.get("weight") is None:
+                    add_unparsed(page_index, owner["row"])
+                    add_unparsed(isin_page, isin_row)
+                    continue
+
+                name = self._pdr_owner_name(
+                    pages[page_index],
+                    page_ys[page_index],
+                    owner["y"],
+                    next_owner_y[id(owner)],
+                    columns.name_band,
+                    isin_token[1],
+                    (
+                        columns.ticker_center - columns.ticker_tolerance,
+                        columns.ticker_center + columns.ticker_tolerance,
+                    ),
+                )
+                notes = (
+                    f"source_ticker={owner['raw_ticker']}"
+                    if owner["suffix"] is not None
+                    else None
+                )
+                holdings.append(
+                    Holding(
+                        symbol=owner["symbol"],
+                        isin=isin_token[3],
+                        name=name,
+                        weight=cells["weight"],
+                        holding_type="stock",
+                        country=None,
+                        nominal_value=cells["nominal"],
+                        market_value=cells.get("value"),
+                        unit_price=cells.get("price"),
+                        notes=notes,
+                    )
+                )
+                consumed[page_index].add(owner["row"])
+                consumed[isin_page].add(isin_row)
+
+            # --- leftover rows that could not become holdings -----------------
+            for page_index, rows in enumerate(pages):
+                for row_index, row in enumerate(rows):
+                    if row_index in consumed[page_index]:
+                        continue
+                    if (page_index, row_index) in added_unparsed:
+                        continue
+                    raw = " ".join(token[3] for token in row)
                     if "TOPLAM" in raw.upper():
                         continue
-                    # A row is noted as unparsed only when it prints into the
-                    # table's TOPLAM DEĞER / weight columns; other page
-                    # furniture (headers, performance summary) is not a failed
-                    # row.
-                    has_value_column = any(
-                        self._pdr_in_band(token, band)
-                        for token in row
-                        for band in (PDR_BAND_MARKET_VALUE, PDR_BAND_WEIGHT)
+                    has_isin = any(
+                        PDR_ISIN_RE.fullmatch(token[3]) for token in row
                     )
-                    if not has_value_column:
+                    has_value_column = any(
+                        _pdr_is_number_token(token[3])
+                        and any(
+                            role in ("value", "weight")
+                            for role in token_roles(token)
+                        )
+                        for token in row
+                    )
+                    if not (has_isin or has_value_column):
                         continue
                     if not any(char.isdigit() for char in raw):
                         continue
                     unparsed_rows.append(raw)
+                    added_unparsed.add((page_index, row_index))
 
+            self._pdr_check_silent_zero(isin_rows, holdings, unparsed_rows)
             return PdrParseResult(
                 holdings=tuple(holdings),
                 unparsed_rows=tuple(unparsed_rows),
