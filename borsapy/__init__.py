@@ -118,6 +118,17 @@ Examples:
 """
 
 # TradingView authentication for real-time data
+from borsapy._providers.bist_calendar import (
+    BIST_HOLIDAY_SOURCE,
+    CalendarCoverageError,
+    available_years,
+    holiday_rows,
+    is_half_day,
+    is_trading_day,
+    previous_trading_day,
+    trading_days,
+)
+from borsapy._providers.isyatirim_aof import get_daily_aof
 from borsapy._providers.tradingview import (
     clear_tradingview_auth,
     get_tradingview_auth,
@@ -129,6 +140,11 @@ from borsapy._providers.twitter import (
     clear_twitter_auth,
     get_twitter_auth,
     set_twitter_auth,
+)
+from borsapy._providers.vbts_guard import (
+    BandSourceUnverifiedError,
+    assert_band_source_safe,
+    vbts_symbols_from_status,
 )
 from borsapy.backtest import Backtest, BacktestResult, Trade, backtest
 from borsapy.bond import Bond, bonds, risk_free_rate
@@ -327,6 +343,18 @@ __all__ = [
     "calculate_macd",
     "calculate_bollinger_bands",
     "calculate_atr",
+    "get_daily_aof",
+    "BIST_HOLIDAY_SOURCE",
+    "CalendarCoverageError",
+    "available_years",
+    "holiday_rows",
+    "is_half_day",
+    "is_trading_day",
+    "previous_trading_day",
+    "trading_days",
+    "BandSourceUnverifiedError",
+    "assert_band_source_safe",
+    "vbts_symbols_from_status",
     "compute_price_limits",
     "flag_limit_sessions",
     "round_to_tick",
