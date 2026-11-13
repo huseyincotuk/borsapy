@@ -216,6 +216,115 @@ class PriceLimits:
         return view
 
 
+class AOFSeriesProvider:
+    """Daily AOF series for a symbol, fetched with **one** bulk request.
+
+    Contract expected by :func:`flag_limit_sessions` when ``aof_provider`` is
+    supplied: ``aof_for(day) -> Decimal | None``, where the returned value is
+    the **reference** AOF for ``day`` (BIST rule: the previous trading
+    session's weighted average price). ``None`` means VERİ YOK.
+
+    The previous-session resolution is handled **inside** this provider (the
+    series-level caller only knows the row's own date), using the sourced BIST
+    calendar. The whole range is downloaded once — never N requests.
+
+    Attributes:
+        symbol: Upper-case ticker.
+        request_count: HTTP requests issued so far (1 after a successful bulk
+            fetch); pinned by tests.
+    """
+
+    def __init__(
+        self,
+        symbol: str,
+        start: date,
+        end: date,
+        *,
+        aof_fetcher: object | None = None,
+    ) -> None:
+        """Fetch the AOF series for ``symbol`` once and build the day map.
+
+        Args:
+            symbol: BIST ticker.
+            start: First session of the requested window.
+            end: Last session of the requested window.
+            aof_fetcher: Test seam; ``(symbol, start, end) -> (frame, diag)``.
+                Defaults to ``isyatirim_aof.get_daily_aof``.
+
+        Raises:
+            ValueError: Empty symbol or ``start`` after ``end``.
+        """
+        ticker = (symbol or "").strip().upper()
+        if not ticker:
+            raise ValueError("symbol must be a non-empty string")
+        if start > end:
+            raise ValueError(f"start {start} is after end {end}")
+
+        self.symbol = ticker
+        self.start = start
+        self.end = end
+        self.request_count = 0
+
+        fetcher = aof_fetcher
+        if fetcher is None:
+            from borsapy._providers.isyatirim_aof import get_daily_aof
+
+            fetcher = get_daily_aof
+
+        frame, _diagnostics = fetcher(ticker, start, end)
+        self.request_count = 1
+
+        #: ``{trading_day: AOF}`` — only days the source actually returned.
+        self._aof_by_day: dict[date, Decimal] = {}
+        if isinstance(frame, pd.DataFrame) and not frame.empty:
+            for label, value in frame["aof"].items():
+                if value is None or _is_missing(value):
+                    continue
+                day = _as_date(label)
+                if day is None:
+                    continue
+                self._aof_by_day[day] = (
+                    value
+                    if isinstance(value, Decimal)
+                    else _as_decimal(value, field_name="aof")
+                )
+
+    def reference_day(self, day: date) -> date:
+        """Return the AOF reference session for ``day`` (previous trading day).
+
+        Args:
+            day: The session being priced.
+
+        Returns:
+            The trading session strictly before ``day``.
+
+        Raises:
+            CalendarCoverageError: If the calendar cannot resolve the day.
+        """
+        from borsapy._providers.bist_calendar import previous_trading_day
+
+        return previous_trading_day(day)
+
+    def aof_for(self, day: date) -> Decimal | None:
+        """Return the reference AOF for the session ``day`` (or ``None``).
+
+        Args:
+            day: The session being priced.
+
+        Returns:
+            The previous session's AOF as :class:`~decimal.Decimal`, or
+            ``None`` when the source has no row for that session (VERİ YOK).
+
+        Raises:
+            CalendarCoverageError: If the calendar cannot resolve ``day``.
+        """
+        return self._aof_by_day.get(self.reference_day(day))
+
+    def __len__(self) -> int:
+        """Number of days with an AOF value."""
+        return len(self._aof_by_day)
+
+
 class AOFUnavailableError(ValueError):
     """Raised when the AOF for the reference session is not available.
 
@@ -436,7 +545,6 @@ def compute_price_limits_from_aof(
 def _aof_for_day(frame: object, day: date) -> Decimal | None:
     """Extract the ``aof`` cell for ``day`` from a ``get_daily_aof`` frame.
 
-    Accepts a DataFrame indexed by date (the documented shape) and returns
     ``None`` when the day is absent or its value is missing — the caller turns
     that into :class:`AOFUnavailableError`.
     """
@@ -498,6 +606,7 @@ def flag_limit_sessions(
     equality_tolerance_pct: object = LIMIT_EQUALITY_TOLERANCE_PCT,
     volume_ratio_threshold: float = LIMIT_VOLUME_RATIO_V0,
     calendar: object | None = None,
+    aof_provider: object | None = None,
 ) -> pd.DataFrame:
     """Flag limit-locked sessions (tavan/taban) in a daily OHLCV frame.
 
@@ -532,6 +641,15 @@ def flag_limit_sessions(
             row is stamped ``onceki_seans_takvim_dogrulanmadi`` in ``gerekce``
             and its ``guven`` is capped at ``SUPHELI`` (never KESIN). The
             calendar object must expose ``previous_trading_day(date)``.
+        aof_provider: Optional AOF series provider (W3c). ``None`` (default)
+            keeps the historical behaviour **byte-identical** — no new column
+            appears. When supplied it must expose ``aof_for(day) -> Decimal |
+            None`` returning the **reference** AOF for that session (already
+            resolved to the previous trading day by the provider). Then the
+            limits are computed from that AOF and a ``referans_kaynagi`` column
+            is added (``"aof"`` / ``"prev_close"`` / ``None``). A missing AOF
+            yields ``limitli=False`` + ``VERİ YOK`` reason + ``guven=None``;
+            falling back to the close is **forbidden** (ERRATUM v2 §H.3).
 
     Returns:
         A copy of ``df`` with added columns ``tavan``, ``taban``, ``limitli``,
@@ -549,6 +667,15 @@ def flag_limit_sessions(
             raise ValueError(
                 "calendar must expose previous_trading_day(date); got "
                 f"{type(calendar).__name__}"
+            )
+
+    aof_lookup = None
+    if aof_provider is not None:
+        aof_lookup = getattr(aof_provider, "aof_for", None)
+        if aof_lookup is None:
+            raise ValueError(
+                "aof_provider must expose aof_for(date); got "
+                f"{type(aof_provider).__name__}"
             )
     required = {
         "high": _column(df, "High", "high"),
@@ -571,6 +698,7 @@ def flag_limit_sessions(
     gerekce: list[str] = []
     guven: list[str | None] = []
     hacimsiz: list[bool] = []
+    referans_kaynagi: list[str | None] = []
 
     tolerance_pct = _as_decimal(equality_tolerance_pct, field_name="equality_tolerance_pct")
     # v0 hacim eşiği için iz süren medyan (ilk satırlarda pencere dolarsa).
@@ -589,7 +717,69 @@ def flag_limit_sessions(
         is_hacimsiz = bool(vol_missing) or (not vol_missing and float(vol) == 0.0)
         hacimsiz.append(is_hacimsiz)
 
-        if prev_close is None or prev_close <= 0 or any(
+        # --- W3c: AOF-based reference (opt-in) -------------------------
+        if aof_lookup is not None:
+            row_day = _as_date(out.index[i])
+            aof_value: Decimal | None = None
+            aof_error: Exception | None = None
+            if row_day is not None:
+                try:
+                    raw_aof = aof_lookup(row_day)
+                except Exception as exc:  # takvim/kapsam hatası -> görünür
+                    raw_aof = None
+                    aof_error = exc
+                if raw_aof is not None and not _is_missing(raw_aof):
+                    aof_value = (
+                        raw_aof
+                        if isinstance(raw_aof, Decimal)
+                        else _as_decimal(raw_aof, field_name="aof")
+                    )
+
+            if aof_value is None or aof_value <= 0:
+                # VERİ YOK yolu: kapanışa DÜŞME YOK (ERRATUM v2 §H.3).
+                referanslar.append(aof_value)
+                tavans.append(None)
+                tabans.append(None)
+                limitli.append(False)
+                yon.append(None)
+                guven.append(None)
+                referans_kaynagi.append("aof" if aof_value else None)
+                day_text = row_day.isoformat() if row_day is not None else "?"
+                if aof_error is not None:
+                    gerekce.append(
+                        f"VERİ YOK: AOF referansı yok ({day_text}) "
+                        f"[takvim: {type(aof_error).__name__}]"
+                    )
+                else:
+                    gerekce.append(f"VERİ YOK: AOF referansı yok ({day_text})")
+                if not _is_missing(close):
+                    prev_close = _as_decimal(close, field_name="close")
+                continue
+
+            if any(_is_missing(value) for value in (high, low, close)):
+                referanslar.append(aof_value)
+                tavans.append(None)
+                tabans.append(None)
+                limitli.append(False)
+                yon.append(None)
+                guven.append(None)
+                referans_kaynagi.append("aof")
+                gerekce.append("VERİ YOK: OHLC eksik")
+                prev_close = aof_value
+                continue
+
+            limits = compute_price_limits(
+                aof_value,
+                band_pct,
+                equality_tolerance_pct=tolerance_pct,
+            )
+            referanslar.append(aof_value)
+            tavans.append(limits.tavan)
+            tabans.append(limits.taban)
+            referans_kaynagi.append("aof")
+            prev_close = aof_value
+            # Paylaşılan sınıflandırma bloğu aşağıda çalışır.
+        elif prev_close is None or prev_close <= 0 or any(
             _is_missing(value) for value in (high, low, close)
         ):
             referanslar.append(prev_close)
@@ -598,19 +788,29 @@ def flag_limit_sessions(
             limitli.append(False)
             yon.append(None)
             guven.append(None)
+            referans_kaynagi.append(None)
             gerekce.append("VERİ YOK: referans fiyat yok")
             if not _is_missing(close):
                 prev_close = _as_decimal(close, field_name="close")
             continue
 
-        limits = compute_price_limits(
-            prev_close,
-            band_pct,
-            equality_tolerance_pct=tolerance_pct,
-        )
-        referanslar.append(prev_close)
-        tavans.append(limits.tavan)
-        tabans.append(limits.taban)
+        if aof_lookup is None:
+            limits = compute_price_limits(
+                prev_close,
+                band_pct,
+                equality_tolerance_pct=tolerance_pct,
+            )
+            referanslar.append(prev_close)
+            tavans.append(limits.tavan)
+            tabans.append(limits.taban)
+            referans_kaynagi.append("prev_close")
+        else:
+            # AOF yolu yukarıda limits/tavan/taban/referansı zaten yazdı.
+            limits = compute_price_limits(
+                referanslar[-1],
+                band_pct,
+                equality_tolerance_pct=tolerance_pct,
+            )
 
         tol_up = limits.tavan * tolerance_pct
         tol_down = limits.taban * tolerance_pct
@@ -706,6 +906,9 @@ def flag_limit_sessions(
     out["gerekce"] = gerekce
     out["guven"] = guven
     out["hacimsiz"] = hacimsiz
+    if aof_lookup is not None:
+        # W3c: yeni sütun YALNIZ opt-in yolda eklenir (byte-identical korunur).
+        out["referans_kaynagi"] = referans_kaynagi
     return out
 
 

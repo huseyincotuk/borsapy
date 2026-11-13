@@ -129,6 +129,7 @@ from borsapy._providers.bist_calendar import (
     trading_days,
 )
 from borsapy._providers.bist_limits import (
+    AOFSeriesProvider,
     AOFUnavailableError,
     compute_price_limits_from_aof,
 )
@@ -361,6 +362,7 @@ __all__ = [
     "vbts_symbols_from_status",
     "compute_price_limits",
     "compute_price_limits_from_aof",
+    "AOFSeriesProvider",
     "AOFUnavailableError",
     "flag_limit_sessions",
     "round_to_tick",
