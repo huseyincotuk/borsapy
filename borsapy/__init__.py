@@ -128,6 +128,10 @@ from borsapy._providers.bist_calendar import (
     previous_trading_day,
     trading_days,
 )
+from borsapy._providers.bist_limits import (
+    AOFUnavailableError,
+    compute_price_limits_from_aof,
+)
 from borsapy._providers.isyatirim_aof import get_daily_aof
 from borsapy._providers.tradingview import (
     clear_tradingview_auth,
@@ -356,6 +360,8 @@ __all__ = [
     "assert_band_source_safe",
     "vbts_symbols_from_status",
     "compute_price_limits",
+    "compute_price_limits_from_aof",
+    "AOFUnavailableError",
     "flag_limit_sessions",
     "round_to_tick",
     "tick_for_price",

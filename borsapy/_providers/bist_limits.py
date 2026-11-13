@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import numbers
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 import pandas as pd
@@ -33,9 +34,11 @@ __all__ = [
     "LIMIT_EQUALITY_TOLERANCE_PCT",
     "LIMIT_VOLUME_RATIO_V0",
     "PriceLimits",
+    "AOFUnavailableError",
     "adtv",
     "adtv_diagnostics",
     "compute_price_limits",
+    "compute_price_limits_from_aof",
     "flag_limit_sessions",
     "round_to_tick",
     "tick_for_price",
@@ -183,10 +186,19 @@ class PriceLimits:
     rounding: str = _ROUNDING_MODE
     equality_tolerance_pct: Decimal = LIMIT_EQUALITY_TOLERANCE_PCT
     notes: tuple[str, ...] = field(default_factory=tuple)
+    #: W3b: AOF'dan türetilen okumalarda referansın ait olduğu işlem günü.
+    #: Varsayılan ``None`` — mevcut çağrıların çıktısı değişmez.
+    reference_date: date | None = None
+    #: W3b: ``as_of`` işlem günü değilse (hafta sonu/tatil) girdi burada.
+    as_of_normalized_from: date | None = None
 
     def as_dict(self) -> dict[str, object]:
-        """Plain-dict view (Decimal values kept as Decimal)."""
-        return {
+        """Plain-dict view (Decimal values kept as Decimal).
+
+        The two ``W3b`` keys appear **only when set**, so plain
+        :func:`compute_price_limits` output is byte-identical to before.
+        """
+        view: dict[str, object] = {
             "reference": self.reference,
             "band_pct": self.band_pct,
             "tavan": self.tavan,
@@ -197,6 +209,29 @@ class PriceLimits:
             "equality_tolerance_pct": self.equality_tolerance_pct,
             "notes": list(self.notes),
         }
+        if self.reference_date is not None:
+            view["reference_date"] = self.reference_date
+        if self.as_of_normalized_from is not None:
+            view["as_of_normalized_from"] = self.as_of_normalized_from
+        return view
+
+
+class AOFUnavailableError(ValueError):
+    """Raised when the AOF for the reference session is not available.
+
+    Falling back to the previous close would silently shift the price limits
+    (measured: THYAO 02.11.2026 close 261.00 vs AOF 252.992 = 3.1%), so the
+    caller must decide explicitly instead.
+    """
+
+    def __init__(self, symbol: str, reference_date: date, reason: str) -> None:
+        self.symbol = symbol
+        self.reference_date = reference_date
+        self.reason = reason
+        super().__init__(
+            f"AOF yok: {symbol} / {reference_date.isoformat()} — {reason}; "
+            "kapanisa sessiz dusme YASAK (cagiran bilincli karar vermeli)"
+        )
 
 
 def compute_price_limits(
@@ -261,6 +296,181 @@ def compute_price_limits(
     )
 
 
+def compute_price_limits_from_aof(
+    symbol: str,
+    *,
+    as_of: date,
+    band_pct: object = LIMIT_BAND_PCT_DEFAULT,
+    band_source: str | None = None,
+    vbts_symbols: object | None = None,
+    aof_fetcher: object | None = None,
+) -> PriceLimits:
+    """Compute BIST tavan/taban using the **AOF** of the previous session.
+
+    BIST's official reference is the previous session's weighted average price
+    (AOF), not its close. Measured gap (THYAO 02.11.2026): close 261.00 vs AOF
+    252.992 → using the close shifts the limits by ~3%.
+
+    Flow:
+
+    1. ``as_of`` is normalised to a trading day: if it is a weekend/holiday the
+       nearest **earlier** trading day is used and the input is stamped in
+       ``as_of_normalized_from`` (never a silent shift).
+    2. The reference session = ``previous_trading_day(anchor)`` — strictly
+       before the anchor, from the sourced BIST calendar.
+    3. Reference value = that session's AOF (``Decimal``). A missing AOF row
+       raises :class:`AOFUnavailableError`; falling back to the close is
+       **forbidden** (no silent shift).
+    4. Tavan/taban are computed by delegating to :func:`compute_price_limits`
+       (single calculation path; no second formula).
+
+    Args:
+        symbol: BIST ticker (e.g. ``"THYAO"``).
+        as_of: The trading day whose limits are wanted (not the reference day).
+        band_pct: Band width; ``PARAMETRE+VARSAYILAN`` (±%10).
+        band_source: Optional explicit band provenance. When omitted it is
+            derived (``"default"`` for the ±%10 default, ``"caller_supplied"``
+            otherwise) so the VBTS guard can see it.
+        vbts_symbols: Optional VBTS list (or ``KAPProvider.get_vbts_status()``
+            mapping). When given, :func:`vbts_guard.assert_band_source_safe` is
+            called — a VBTS symbol with an unverified band raises.
+        aof_fetcher: Test seam. Callable ``(symbol, start, end) -> (frame,
+            diagnostics)``; defaults to
+            :func:`borsapy._providers.isyatirim_aof.get_daily_aof`.
+
+    Returns:
+        :class:`PriceLimits` with ``reference_source="aof"`` and
+        ``reference_date`` set to the reference session.
+
+    Raises:
+        AOFUnavailableError: The reference session has no AOF value.
+        CalendarCoverageError: ``as_of`` or the reference session is outside the
+            sourced calendar coverage.
+        BandSourceUnverifiedError: VBTS symbol with an unverified band.
+        ValueError: Empty ``symbol`` or invalid ``band_pct``.
+    """
+    ticker = (symbol or "").strip().upper()
+    if not ticker:
+        raise ValueError("symbol must be a non-empty string")
+    if not isinstance(as_of, date):
+        raise ValueError(f"as_of must be a date, got {type(as_of).__name__}")
+
+    # Local imports keep this module dependency-light and immune to import
+    # ordering in ``borsapy/__init__`` (no cycle exists, this is defensive).
+    from borsapy._providers.bist_calendar import (
+        is_trading_day,
+        previous_trading_day,
+    )
+
+    # --- 1) normalise as_of (weekend/holiday) --------------------------
+    as_of_input = as_of
+    anchor = as_of
+    if not is_trading_day(anchor):
+        anchor = previous_trading_day(anchor, include_self=True)
+
+    # --- 2) reference session = previous trading day -------------------
+    reference_day = previous_trading_day(anchor)
+
+    # --- 3) AOF of the reference session -------------------------------
+    fetcher = aof_fetcher
+    if fetcher is None:
+        from borsapy._providers.isyatirim_aof import get_daily_aof
+
+        fetcher = get_daily_aof
+
+    frame, _diagnostics = fetcher(ticker, reference_day, reference_day)
+
+    aof_value = _aof_for_day(frame, reference_day)
+    if aof_value is None:
+        raise AOFUnavailableError(
+            ticker,
+            reference_day,
+            "kaynakta o gun icin HGDG_AOF satiri/degeri yok "
+            "(get_daily_aof bos veya aof=None dondu)",
+        )
+
+    # --- 3b) band provenance (VBTS guard needs it) ---------------------
+    band_decimal = _as_decimal(band_pct, field_name="band_pct")
+    source_label = band_source
+    if source_label is None:
+        source_label = (
+            "default"
+            if band_decimal == LIMIT_BAND_PCT_DEFAULT
+            else "caller_supplied"
+        )
+
+    if vbts_symbols is not None:
+        from borsapy._providers.vbts_guard import assert_band_source_safe
+
+        assert_band_source_safe(ticker, source_label, vbts_symbols)
+
+    # --- 4) delegate the calculation (single formula) ------------------
+    limits = compute_price_limits(aof_value, band_decimal)
+
+    notes = list(limits.notes)
+    notes.append(
+        f"referans = AOF ({reference_day.isoformat()}); kapanis DEGIL "
+        "(BIST kurali)"
+    )
+    if anchor != as_of_input:
+        notes.append(
+            f"as_of {as_of_input.isoformat()} islem gunu degil; "
+            f"{anchor.isoformat()} gunune normalize edildi"
+        )
+
+    return PriceLimits(
+        reference=limits.reference,
+        band_pct=limits.band_pct,
+        tavan=limits.tavan,
+        taban=limits.taban,
+        reference_source="aof",
+        band_source=source_label,
+        rounding=limits.rounding,
+        equality_tolerance_pct=limits.equality_tolerance_pct,
+        notes=tuple(notes),
+        reference_date=reference_day,
+        as_of_normalized_from=(as_of_input if anchor != as_of_input else None),
+    )
+
+
+def _aof_for_day(frame: object, day: date) -> Decimal | None:
+    """Extract the ``aof`` cell for ``day`` from a ``get_daily_aof`` frame.
+
+    Accepts a DataFrame indexed by date (the documented shape) and returns
+    ``None`` when the day is absent or its value is missing — the caller turns
+    that into :class:`AOFUnavailableError`.
+    """
+    if frame is None:
+        return None
+
+    if isinstance(frame, pd.DataFrame):
+        if frame.empty:
+            return None
+        if day in frame.index:
+            value = frame.loc[day, "aof"]
+            if isinstance(value, pd.Series):  # duplicate index safety
+                value = value.iloc[0]
+            if _is_missing(value) or value is None:
+                return None
+            return value if isinstance(value, Decimal) else _as_decimal(
+                value, field_name="aof"
+            )
+        return None
+
+    # Mapping fallback (``{date: Decimal|None}``), useful for callers/tests.
+    if isinstance(frame, dict):
+        value = frame.get(day)
+        if value is None or _is_missing(value):
+            return None
+        return value if isinstance(value, Decimal) else _as_decimal(
+            value, field_name="aof"
+        )
+
+    raise ValueError(
+        f"unsupported AOF payload type: {type(frame).__name__}"
+    )
+
+
 def _column(df: pd.DataFrame, *names: str) -> pd.Series | None:
     """Return the first present column among ``names`` (case-insensitive)."""
     lowered = {str(col).strip().lower(): col for col in df.columns}
@@ -287,6 +497,7 @@ def flag_limit_sessions(
     band_pct: object = LIMIT_BAND_PCT_DEFAULT,
     equality_tolerance_pct: object = LIMIT_EQUALITY_TOLERANCE_PCT,
     volume_ratio_threshold: float = LIMIT_VOLUME_RATIO_V0,
+    calendar: object | None = None,
 ) -> pd.DataFrame:
     """Flag limit-locked sessions (tavan/taban) in a daily OHLCV frame.
 
@@ -314,6 +525,13 @@ def flag_limit_sessions(
         band_pct: Band width passed to :func:`compute_price_limits`.
         equality_tolerance_pct: Equality tolerance (P5, ±%0.1 of the limit).
         volume_ratio_threshold: v0 volume ratio (calibration pending).
+        calendar: Optional trading-calendar module (W3b). ``None`` (default)
+            keeps the historical behaviour **byte-identical**. When supplied,
+            every consecutive session pair is checked against the calendar: if
+            the previous row is not the calendar's previous trading day, the
+            row is stamped ``onceki_seans_takvim_dogrulanmadi`` in ``gerekce``
+            and its ``guven`` is capped at ``SUPHELI`` (never KESIN). The
+            calendar object must expose ``previous_trading_day(date)``.
 
     Returns:
         A copy of ``df`` with added columns ``tavan``, ``taban``, ``limitli``,
@@ -321,8 +539,17 @@ def flag_limit_sessions(
         (``KESIN``/``SUPHELI``/``None``), ``hacimsiz`` and ``referans``.
 
     Raises:
-        ValueError: If a required OHLCV column is missing.
+        ValueError: If a required OHLCV column is missing, or ``calendar`` is
+            given without a ``previous_trading_day`` attribute.
     """
+    calendar_prev = None
+    if calendar is not None:
+        calendar_prev = getattr(calendar, "previous_trading_day", None)
+        if calendar_prev is None:
+            raise ValueError(
+                "calendar must expose previous_trading_day(date); got "
+                f"{type(calendar).__name__}"
+            )
     required = {
         "high": _column(df, "High", "high"),
         "low": _column(df, "Low", "low"),
@@ -442,6 +669,29 @@ def flag_limit_sessions(
         else:
             reason = "limit temasi yok"
 
+        # --- W3b: calendar-aware previous-session check (opt-in) ---------
+        if calendar_prev is not None:
+            row_day = _as_date(out.index[i])
+            prev_day = _as_date(out.index[i - 1]) if i > 0 else None
+            if row_day is not None and prev_day is not None:
+                try:
+                    expected = calendar_prev(row_day)
+                except Exception as exc:  # coverage/takvim hatası -> görünür
+                    expected = None
+                    reason = (
+                        f"{reason}; onceki_seans_takvim_dogrulanmadi "
+                        f"(takvim: {type(exc).__name__})"
+                    )
+                if expected is not None and expected != prev_day:
+                    reason = (
+                        f"{reason}; onceki_seans_takvim_dogrulanmadi "
+                        f"(beklenen={expected.isoformat()}, "
+                        f"seride={prev_day.isoformat()})"
+                    )
+                    # GAP: KESIN asla korunmaz, SUPHELI'ye sabitlenir.
+                    if confidence == "KESIN":
+                        confidence = "SUPHELI"
+
         limitli.append(flag)
         yon.append(direction)
         gerekce.append(reason)
@@ -457,6 +707,20 @@ def flag_limit_sessions(
     out["guven"] = guven
     out["hacimsiz"] = hacimsiz
     return out
+
+
+def _as_date(value: object) -> date | None:
+    """Coerce an index label to :class:`datetime.date` (``None`` when not a date)."""
+    if isinstance(value, date) and not isinstance(value, type(None)):
+        # ``datetime`` is a ``date`` subclass; keep only the calendar day.
+        return date(value.year, value.month, value.day)
+    try:
+        converted = pd.Timestamp(value)
+    except (TypeError, ValueError):
+        return None
+    if pd.isna(converted):
+        return None
+    return date(converted.year, converted.month, converted.day)
 
 
 def _column_value(series: pd.Series | None, position: int) -> object:
