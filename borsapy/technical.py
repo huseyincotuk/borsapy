@@ -53,6 +53,7 @@ __all__ = [
     "calculate_obv",
     "calculate_avwap",
     "calculate_avwap_bands",
+    "calculate_avwap_sigma_bands",
     "calculate_vwap",
     "calculate_adx",
     "calculate_supertrend",
@@ -607,6 +608,133 @@ def calculate_avwap_bands(
     return pd.DataFrame(columns, index=df.index)
 
 
+def calculate_avwap_sigma_bands(
+    df: pd.DataFrame,
+    *,
+    anchor: int | str | pd.Timestamp,
+    column: str = "Close",
+    sigma: float = 1.0,
+    ddof: int = 0,
+) -> pd.DataFrame:
+    """Anchored VWAP ±σ bands (anchor-based volatility envelope).
+
+    W3d brought the anchored VWAP *line*; this function wraps it in a
+    volatility envelope: at each bar the **cumulative** standard deviation of
+    ``(typical price − AVWAP)`` since the anchor is added to / subtracted
+    from the AVWAP. Wyckoff-style squeeze/expansion reads (A4 absorption
+    context) need exactly that band width — the existing Bollinger bands are
+    SMA/EMA-based, not anchor-based.
+
+    **σ semantics:** ``sigma`` is a PARAMETER (default ``1.0``) — **NOT
+    CALIBRATED**. It is echoed in the ``sigma`` output column as a constant
+    provenance stamp (künye) so any consumer can see which multiplier
+    produced the frame. The per-bar computed deviation is not returned.
+
+    **Single computation path:** the ``avwap`` column IS the output of
+    :func:`calculate_avwap` (called, never re-implemented here).
+
+    Note on numeric type: this is a technical-indicator layer working on
+    ``pandas``/``numpy`` floats (like ``calculate_avwap``). It is **not** an
+    accounting/money value, so ``Decimal`` is deliberately not used here.
+
+    Not wired into :func:`add_indicators` on purpose: the multi-column output
+    does not fit its dict shape (documented decision, W3e).
+
+    Args:
+        df: DataFrame with ``High``/``Low``/``Close``, ``Volume`` and the
+            ``column`` price column.
+        anchor: Same semantics as :func:`calculate_avwap`: 0-based bar
+            position, or the first bar of a date (str/Timestamp; requires a
+            DatetimeIndex).
+        column: Price column used inside the typical price
+            (``(High + Low + column) / 3`` when ``High``/``Low`` exist,
+            otherwise ``column`` alone).
+        sigma: Band multiplier; must be finite and ``> 0``. PARAMETER,
+            NOT CALIBRATED (default ``1.0``).
+        ddof: Delta degrees of freedom for the cumulative standard deviation.
+            ``0`` = population (documented default choice).
+
+    Returns:
+        DataFrame indexed like ``df`` with columns:
+
+        * ``avwap`` — the :func:`calculate_avwap` output (bars before the
+          anchor are ``NaN``)
+        * ``upper`` — ``avwap + sigma·σ_t``
+        * ``lower`` — ``avwap − sigma·σ_t``
+        * ``sigma`` — the multiplier used (constant provenance column)
+
+        ``σ_t`` is the cumulative standard deviation of the anchored
+        deviations **including the current bar**. A single bar (anchor = last
+        bar, ``ddof=0``) legitimately yields ``σ=0`` → ``upper == lower ==
+        avwap`` (a real computation, not NaN). With ``ddof=1`` a single
+        observation is undefined → that bar is ``NaN`` and later bars
+        recover. When the anchored average is ``NaN`` (zero cumulative
+        volume), the deviation set is broken: that bar **and everything after
+        it** is ``NaN`` (cascade — the cumulative set only grows). ``inf`` is
+        never returned.
+
+    Raises:
+        ValueError: ``sigma`` is not finite/``> 0``, ``ddof < 0``, or the
+            anchor is invalid (see :func:`calculate_avwap`).
+    """
+    if not np.isfinite(sigma) or not (sigma > 0):
+        raise ValueError(f"sigma must be a finite value > 0; got {sigma!r}")
+    if ddof < 0:
+        raise ValueError(f"ddof must be >= 0; got {ddof!r}")
+
+    typical = _avwap_typical_price(df, column)
+    if typical is None:
+        # Eksik sütun: calculate_avwap ile aynı desen (görünür nan + uyarı).
+        warnings.warn(
+            "calculate_avwap_sigma_bands: missing required columns "
+            f"(need High/Low/{column} and Volume); returning NaN frame",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return pd.DataFrame(
+            {"avwap": np.nan, "upper": np.nan, "lower": np.nan, "sigma": np.nan},
+            index=df.index,
+        )
+
+    start = _avwap_anchor_position(df, anchor)
+    if start is None:
+        # Boş frame: hata değil (W3d politikası).
+        return pd.DataFrame(
+            {"avwap": np.nan, "upper": np.nan, "lower": np.nan, "sigma": np.nan},
+            index=df.index,
+        )
+
+    # TEK HESAP YOLU: avwap sütunu calculate_avwap'tan gelir (yeniden yazılmaz).
+    avwap = calculate_avwap(df, anchor=anchor, column=column)
+
+    # Sapma = tipik fiyat − AVWAP (tipik fiyat tanımı W3d ile aynı).
+    dev = typical.astype("float64") - avwap.astype("float64")
+    dev_after = dev.iloc[start:]
+
+    # Zincirleme NaN: sapma kümesine bir NaN girdiyse kümülatif std
+    # sonrasında da tanımsızdır (küme yalnız büyür, NaN dışarı çıkmaz).
+    broken = dev_after.isna().cummax()
+    sigma_t_after = dev_after.expanding(min_periods=1).std(ddof=ddof)
+    sigma_t_after = sigma_t_after.where(~broken, np.nan)
+
+    # Çapa öncesi barlar NaN (veri o noktada yok).
+    sigma_t = pd.Series(np.nan, index=df.index, dtype="float64")
+    sigma_t.iloc[start:] = sigma_t_after.to_numpy()
+
+    upper = (avwap + sigma * sigma_t).replace([np.inf, -np.inf], np.nan)
+    lower = (avwap - sigma * sigma_t).replace([np.inf, -np.inf], np.nan)
+
+    return pd.DataFrame(
+        {
+            "avwap": avwap.to_numpy(),
+            "upper": upper.to_numpy(),
+            "lower": lower.to_numpy(),
+            "sigma": float(sigma),
+        },
+        index=df.index,
+    )
+
+
 def calculate_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
     """Calculate Average Directional Index (ADX).
 
@@ -1143,6 +1271,30 @@ class TechnicalAnalyzer:
             Series named ``AVWAP``; bars before the anchor are NaN.
         """
         return calculate_avwap(self._df, anchor=anchor, column=column)
+
+    def avwap_sigma_bands(
+        self,
+        anchor: int | str | pd.Timestamp,
+        column: str = "Close",
+        sigma: float = 1.0,
+        ddof: int = 0,
+    ) -> pd.DataFrame:
+        """Calculate AVWAP ±σ bands starting at ``anchor``.
+
+        Args:
+            anchor: Bar position (int) or date (str/Timestamp).
+            column: Price column used inside the typical price.
+            sigma: Band multiplier (finite, > 0). PARAMETER, NOT CALIBRATED.
+            ddof: Delta degrees of freedom for the cumulative std.
+
+        Returns:
+            DataFrame with ``avwap``/``upper``/``lower``/``sigma`` columns;
+            bars before the anchor are NaN. See
+            :func:`calculate_avwap_sigma_bands` for the full contract.
+        """
+        return calculate_avwap_sigma_bands(
+            self._df, anchor=anchor, column=column, sigma=sigma, ddof=ddof
+        )
 
     def adx(self, period: int = 14) -> pd.Series:
         """Calculate Average Directional Index."""
