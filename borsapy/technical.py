@@ -9,6 +9,9 @@ Indicators can be used via:
 
 from __future__ import annotations
 
+import warnings
+from collections.abc import Sequence
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -48,6 +51,8 @@ __all__ = [
     "calculate_atr",
     "calculate_stochastic",
     "calculate_obv",
+    "calculate_avwap",
+    "calculate_avwap_bands",
     "calculate_vwap",
     "calculate_adx",
     "calculate_supertrend",
@@ -423,6 +428,185 @@ def calculate_vwap(df: pd.DataFrame) -> pd.Series:
     return vwap.rename("VWAP")
 
 
+def calculate_avwap(
+    df: pd.DataFrame,
+    *,
+    anchor: int | str | pd.Timestamp,
+    column: str = "Close",
+) -> pd.Series:
+    """Calculate **Anchored** VWAP (AVWAP) from an anchor bar onwards.
+
+    Cumulative VWAP (``calculate_vwap``) averages the whole series from its
+    first bar, so it cannot express "average cost since event X". Wyckoff-style
+    analysis needs the average cost **from a specific event** (breakout, news,
+    bottom) — that is exactly an anchored VWAP.
+
+    **Anchor meaning:** the anchor is the bar where the calculation STARTS.
+    Bars before the anchor carry ``NaN`` — the data does not exist there, so no
+    value is invented.
+
+    Note on numeric type: this is a technical-indicator layer working on
+    ``pandas``/``numpy`` floats (like the existing ``calculate_vwap``). It is
+    **not** an accounting/money value, so ``Decimal`` is deliberately not used
+    here.
+
+    Args:
+        df: DataFrame with ``High``/``Low``/``Close``, ``Volume`` and the
+            ``column`` price column.
+        anchor: Where to start the accumulation. Three forms are accepted:
+
+            * ``int`` — 0-based **bar position** (negative/out-of-range → error)
+            * ``str`` / :class:`pandas.Timestamp` — the **first bar on that
+              date** (requires a datetime index)
+        column: Price column used inside the typical price. The typical price
+            is ``(High + Low + column) / 3`` when ``High``/``Low`` exist,
+            otherwise ``column`` alone. Defaults to ``"Close"`` (documented
+            choice).
+
+    Returns:
+        Series named ``AVWAP`` with the anchored volume-weighted average price.
+        Bars before the anchor are ``NaN``; a bar whose cumulative volume is 0
+        is ``NaN`` (never ``inf``).
+
+    Raises:
+        ValueError: Anchor is negative/out of range, a date anchor is used on a
+            non-datetime index, or the anchor date is not present in the index.
+    """
+    typical = _avwap_typical_price(df, column)
+    if typical is None:
+        # Eksik sütun: mevcut calculate_vwap ile aynı desen (görünür nan serisi).
+        warnings.warn(
+            "calculate_avwap: missing required columns "
+            f"(need High/Low/{column} and Volume); returning NaN series",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return pd.Series(np.nan, index=df.index, name="AVWAP")
+
+    start = _avwap_anchor_position(df, anchor)
+    if start is None:
+        return pd.Series(np.nan, index=df.index, name="AVWAP")
+
+    volume = df["Volume"].iloc[start:].astype("float64")
+    prices = typical.iloc[start:].astype("float64")
+
+    cumulative_pv = (prices * volume).cumsum()
+    cumulative_vol = volume.cumsum()
+    anchored = cumulative_pv / cumulative_vol
+    anchored = anchored.replace([np.inf, -np.inf], np.nan)
+
+    # Çapa öncesi barlar NaN (veri o noktada yok).
+    out = pd.Series(np.nan, index=df.index, name="AVWAP", dtype="float64")
+    out.iloc[start:] = anchored.to_numpy()
+    return out
+
+
+def _avwap_typical_price(df: pd.DataFrame, column: str) -> pd.Series | None:
+    """Typical price for AVWAP (``(H+L+column)/3`` or ``column``).
+
+    Args:
+        df: Source frame.
+        column: Price column name.
+
+    Returns:
+        Series of typical prices, or ``None`` when required columns are absent.
+    """
+    if "Volume" not in df.columns or column not in df.columns:
+        return None
+    if "High" in df.columns and "Low" in df.columns:
+        return (df["High"] + df["Low"] + df[column]) / 3
+    return df[column]
+
+
+def _avwap_anchor_position(
+    df: pd.DataFrame, anchor: int | str | pd.Timestamp
+) -> int | None:
+    """Resolve an anchor to a 0-based bar position.
+
+    Args:
+        df: Source frame (used for its index).
+        anchor: Bar position, date string or :class:`pandas.Timestamp`.
+
+    Returns:
+        Bar position, or ``None`` for an empty frame.
+
+    Raises:
+        ValueError: See :func:`calculate_avwap`.
+    """
+    if len(df) == 0:
+        return None
+
+    if isinstance(anchor, bool):
+        raise ValueError("anchor must be an int, date or Timestamp; got bool")
+
+    if isinstance(anchor, (int, np.integer)):
+        position = int(anchor)
+        if position < 0:
+            raise ValueError(f"anchor bar position must be >= 0; got {position}")
+        if position >= len(df):
+            raise ValueError(
+                f"anchor bar position {position} is out of range for {len(df)} bars"
+            )
+        return position
+
+    if isinstance(anchor, (str, pd.Timestamp, datetime)):
+        if not isinstance(df.index, pd.DatetimeIndex):
+            raise ValueError(
+                "a date anchor requires a DatetimeIndex; "
+                f"got {type(df.index).__name__} (use an int bar position)"
+            )
+        target = pd.Timestamp(anchor)
+        # O tarihin İLK barı (aynı gün birden çok bar varsa ilki).
+        for position in range(len(df)):
+            label = pd.Timestamp(df.index[position])
+            if label.normalize() == target.normalize():
+                return position
+        raise ValueError(f"anchor date {target.date()} is not present in the index")
+
+    raise ValueError(
+        "anchor must be an int bar position, a date string or a pandas Timestamp; "
+        f"got {type(anchor).__name__}"
+    )
+
+
+def calculate_avwap_bands(
+    df: pd.DataFrame,
+    anchors: Sequence[object],
+    *,
+    column: str = "Close",
+) -> pd.DataFrame:
+    """Return one AVWAP column per anchor (Wyckoff multi-anchor helper).
+
+    Args:
+        df: Source OHLCV frame.
+        anchors: Anchors in order; each is ``(anchor, label)`` or a bare anchor.
+            A bare anchor is labelled with its own ``str()``.
+        column: Price column passed to :func:`calculate_avwap`.
+
+    Returns:
+        DataFrame with one ``avwap_<label>`` column per anchor, indexed like
+        ``df``. An empty ``anchors`` list yields an empty frame (no columns) and
+        a visible warning.
+    """
+    if not anchors:
+        warnings.warn(
+            "calculate_avwap_bands: empty anchor list; returning an empty frame",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return pd.DataFrame(index=df.index)
+
+    columns: dict[str, pd.Series] = {}
+    for item in anchors:
+        if isinstance(item, tuple) and len(item) == 2:
+            anchor_value, label = item
+        else:
+            anchor_value, label = item, str(item)
+        name = f"avwap_{label}"
+        columns[name] = calculate_avwap(df, anchor=anchor_value, column=column)
+    return pd.DataFrame(columns, index=df.index)
+
+
 def calculate_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
     """Calculate Average Directional Index (ADX).
 
@@ -755,7 +939,7 @@ def add_indicators(
         df: DataFrame with OHLCV data (Open, High, Low, Close, Volume)
         indicators: List of indicators to add. If None, adds all applicable.
             Options: 'sma', 'ema', 'rsi', 'macd', 'bollinger', 'atr',
-                     'stochastic', 'obv', 'vwap', 'adx', 'supertrend',
+                     'stochastic', 'obv', 'vwap', 'avwap', 'adx', 'supertrend',
                      'hhv', 'llv', 'mom', 'roc', 'wma', 'dema', 'tema'
         **kwargs: Additional arguments for specific indicators:
             - sma_period: SMA period (default 20)
@@ -839,6 +1023,14 @@ def add_indicators(
             result["OBV"] = calculate_obv(df)
         elif indicator == "vwap" and has_volume and has_hlc:
             result["VWAP"] = calculate_vwap(df)
+        elif indicator == "avwap":
+            anchor = kwargs.get("avwap_anchor", None)
+            if anchor is None:
+                raise ValueError("avwap requires an anchor")
+            # Çapa bilinmeden sayı basılmaz — varsayılan çapa UYDURULMAZ.
+            result["AVWAP"] = calculate_avwap(
+                df, anchor=anchor, column=kwargs.get("avwap_column", "Close")
+            )
         elif indicator == "adx" and has_hlc:
             result[f"ADX_{adx_period}"] = calculate_adx(df, adx_period)
         elif indicator == "supertrend" and has_hlc:
@@ -935,6 +1127,22 @@ class TechnicalAnalyzer:
     def vwap(self) -> pd.Series:
         """Calculate Volume Weighted Average Price."""
         return calculate_vwap(self._df)
+
+    def avwap(
+        self,
+        anchor: int | str | pd.Timestamp,
+        column: str = "Close",
+    ) -> pd.Series:
+        """Calculate Anchored VWAP starting at ``anchor``.
+
+        Args:
+            anchor: Bar position (int) or date (str/Timestamp).
+            column: Price column used inside the typical price.
+
+        Returns:
+            Series named ``AVWAP``; bars before the anchor are NaN.
+        """
+        return calculate_avwap(self._df, anchor=anchor, column=column)
 
     def adx(self, period: int = 14) -> pd.Series:
         """Calculate Average Directional Index."""
