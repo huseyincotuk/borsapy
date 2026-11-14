@@ -1056,6 +1056,84 @@ def calculate_tema(
 # =============================================================================
 
 
+#: ``add_indicators`` tarafından kabul edilen gösterge adları — TEK KAYNAK
+#: (W3f fail-loud). Sıra, ``add_indicators`` docstring'i ile aynıdır.
+_SUPPORTED_INDICATORS: tuple[str, ...] = (
+    "sma",
+    "ema",
+    "rsi",
+    "macd",
+    "bollinger",
+    "atr",
+    "stochastic",
+    "obv",
+    "vwap",
+    "avwap",
+    "adx",
+    "supertrend",
+    "hhv",
+    "llv",
+    "mom",
+    "roc",
+    "wma",
+    "dema",
+    "tema",
+)
+
+#: ``add_indicators``'a EKLENEMEYEN çok sütunlu göstergeler (W3e kararı:
+#: sözlük yapısına uymazlar) ve kullanıcıyı DOĞRU fonksiyona yönlendiren
+#: ad → fonksiyon eşlemesi. Bilinmeyen-ad hatasından daha yardımcı olur.
+_MULTI_COLUMN_INDICATORS: dict[str, str] = {
+    "avwap_sigma": "calculate_avwap_sigma_bands",
+    "avwap_bands": "calculate_avwap_bands",
+}
+
+#: Hesap döngüsünde veri koşuluna (``has_hlc`` / ``has_volume``) bağlı
+#: dallara sahip adlar ve gereksinim duydukları sütunlar. Koşul
+#: sağlanmazsa dal sessizçe düşerdi — W3f ile hesaptan ÖNCE hata verir.
+_INDICATOR_REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
+    "atr": ("High", "Low", "Close"),
+    "stochastic": ("High", "Low", "Close"),
+    "adx": ("High", "Low", "Close"),
+    "supertrend": ("High", "Low", "Close"),
+    "obv": ("Close", "Volume"),
+    "vwap": ("High", "Low", "Close", "Volume"),
+}
+
+
+def _validate_indicators(df: pd.DataFrame, indicators: list[str]) -> None:
+    """``add_indicators`` için fail-loud ön doğrulama (W3f).
+
+    Args:
+        df: Hedef frame (sütun gereksinimleri buna bakılır).
+        indicators: Normalize edilmiş (``strip`` + ``lower``) ad listesi.
+
+    Raises:
+        ValueError: Bilinmeyen ad, çok sütunlu gösterge adı veya eksik
+            veri sütunları. Hata mesajı desteklenen adları / doğru
+            fonksiyonu / eksik sütunları içerir.
+    """
+    for name in indicators:
+        helper = _MULTI_COLUMN_INDICATORS.get(name)
+        if helper is not None:
+            raise ValueError(
+                f"'{name}' produces multiple columns and is not available "
+                f"via add_indicators; use {helper}(df, ...) instead"
+            )
+        if name not in _SUPPORTED_INDICATORS:
+            raise ValueError(
+                f"unknown indicator '{name}'; supported: "
+                f"{sorted(_SUPPORTED_INDICATORS)}"
+            )
+        required = _INDICATOR_REQUIRED_COLUMNS.get(name, ())
+        missing = [col for col in required if col not in df.columns]
+        if missing:
+            raise ValueError(
+                f"indicator '{name}' requires columns {list(required)}; "
+                f"missing from frame: {missing}"
+            )
+
+
 def add_indicators(
     df: pd.DataFrame,
     indicators: list[str] | None = None,
@@ -1065,10 +1143,20 @@ def add_indicators(
 
     Args:
         df: DataFrame with OHLCV data (Open, High, Low, Close, Volume)
-        indicators: List of indicators to add. If None, adds all applicable.
+        indicators: List of indicators to add. If None, adds all applicable
+            (conditional on available columns — never raises on missing
+            data; that default path is unchanged by design). Names are
+            case-insensitive and surrounding whitespace is stripped.
             Options: 'sma', 'ema', 'rsi', 'macd', 'bollinger', 'atr',
                      'stochastic', 'obv', 'vwap', 'avwap', 'adx', 'supertrend',
                      'hhv', 'llv', 'mom', 'roc', 'wma', 'dema', 'tema'
+            Unknown names fail LOUD (W3f): all names are validated BEFORE
+            any column is added (atomic — a bad name adds nothing), the
+            message lists the supported names. Supported-but-missing-data
+            names (e.g. ``atr`` without High/Low) raise ValueError naming
+            the missing columns. ``avwap_sigma``/``avwap_bands`` are
+            multi-column and deliberately NOT available here; the error
+            message points to the right function.
         **kwargs: Additional arguments for specific indicators:
             - sma_period: SMA period (default 20)
             - ema_period: EMA period (default 12)
@@ -1103,6 +1191,14 @@ def add_indicators(
             indicators.append("obv")
         if has_volume and has_hlc:
             indicators.append("vwap")
+    else:
+        # W3f (fail-loud): normalize et (REQ-002: strip + lower) ve TÜM
+        # adları hesap başlamadan ÖNCE doğrula (atomiklik). None yolu
+        # bilinçli olarak dokunulmaz — varsayılan liste koşullu filtreleme
+        # ile aynı sütunları üretir, eksik veride hata üretmez (regresyon
+        # olmasın diye; bu davranış korunur).
+        indicators = [name.strip().lower() for name in indicators]
+        _validate_indicators(df, indicators)
 
     # Get periods from kwargs
     sma_period = kwargs.get("sma_period", 20)
