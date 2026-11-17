@@ -1145,6 +1145,92 @@ class Ticker(TechnicalMixin, TwitterMixin):
 
         return build_adjusted_frame(base, with_adj["Adj Close"], nominal_close=nominal)
 
+    def relative_strength(
+        self,
+        index: str = "XU100",
+        period: str = "2y",
+        interval: str = "1d",
+        *,
+        normalize: bool = True,
+        base: int = 0,
+        lookback: int = 20,
+    ) -> tuple[pd.Series, dict]:
+        """Endekse göreli güç (hisse/endeks oranı) — düzeltilmiş hisse.
+
+        Wyckoff §13: "Hisse/BIST 100 oranını çizin. Oran yükseliyorsa hisse
+        endeksten güçlüdür." Oran **düzeltilmiş** hisse kapanışıyla hesaplanır
+        (temettü + bedelsiz; W3g ``history_adjusted``) — aksi halde temettü
+        günlerinde sahte zayıflık görünür.
+
+        Not: Float katmanı (gösterge fiyatı; muhasebe değeri değil). Bir çağrı
+        dört ağ isteği yapar (hisse 3 + endeks 1).
+
+        Args:
+            index: Endeks sembolü (varsayılan ``XU100`` = BIST 100).
+            period: Aralık (``history`` ile aynı).
+            interval: Bar aralığı (``history`` ile aynı).
+            normalize: ``True`` ise baz günü 100'e ölçeklenir.
+            base: Normalizasyon bazının 0-tabanlı konumu.
+            lookback: Trend eğimi penceresi (bar). **PARAMETRE — KALİBRE
+                EDİLMEDİ.**
+
+        Returns:
+            ``(rs, meta)``. ``meta`` :func:`borsapy.relative_strength.
+            relative_strength_series` künyesine ek olarak baz damgalarını
+            taşır: ``stock_adjusted=True``, ``index_source``,
+            ``price_basis="adjusted_stock / raw_index"``, ``index_symbol``.
+
+        Raises:
+            ValueError: Hisse verisi boş, endeks çekilemedi/boş veya seriler
+                kesişmiyorsa — tek taraflı seri RS değildir.
+        """
+        from borsapy.index import Index
+        from borsapy.relative_strength import relative_strength_series
+
+        stock_frame, _stock_meta = self.history_adjusted(
+            period=period, interval=interval
+        )
+        if stock_frame.empty or "Close" not in stock_frame.columns:
+            raise ValueError(
+                f"relative_strength: no adjusted history for {self._symbol} "
+                f"(period={period}, interval={interval})"
+            )
+
+        try:
+            index_frame = Index(index).history(period=period, interval=interval)
+        except Exception as exc:  # noqa: BLE001 — tek taraflı seri yasak
+            raise ValueError(
+                f"relative_strength: could not fetch index '{index}' history "
+                f"({type(exc).__name__}: {exc}) — a single-sided series is not "
+                "a relative strength"
+            ) from exc
+        if index_frame is None or index_frame.empty or "Close" not in index_frame.columns:
+            raise ValueError(
+                f"relative_strength: index '{index}' returned no usable close "
+                "history — a single-sided series is not a relative strength"
+            )
+
+        rs, meta = relative_strength_series(
+            stock_frame["Close"],
+            index_frame["Close"],
+            normalize=normalize,
+            base=base,
+            lookback=lookback,
+        )
+        meta = dict(meta)
+        meta.update(
+            {
+                "stock_adjusted": True,
+                "index_symbol": index,
+                "index_source": (
+                    f"Index('{index}').history (raw close; indices carry no "
+                    "dividend/split adjustment)"
+                ),
+                "price_basis": "adjusted_stock / raw_index",
+            }
+        )
+        return rs, meta
+
     def _add_actions_to_history(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Add Dividends and Stock Splits columns to historical data.

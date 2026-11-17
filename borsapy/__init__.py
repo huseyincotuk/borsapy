@@ -191,6 +191,11 @@ from borsapy.readiness import (
     StockAnalysisReadiness,
     evaluate_stock_readiness,
 )
+from borsapy.relative_strength import (
+    RSEvent,
+    relative_strength_events,
+    relative_strength_series,
+)
 from borsapy.replay import ReplaySession, create_replay
 from borsapy.scanner import ScanResult, TechnicalScanner, scan
 from borsapy.screener import Screener, screen_stocks, screener_criteria, sectors, stock_indices
@@ -285,6 +290,9 @@ __all__ = [
     "Fund",
     "Portfolio",
     "Index",
+    "RSEvent",
+    "relative_strength_series",
+    "relative_strength_events",
     "Inflation",
     "VIOP",
     "Bond",
