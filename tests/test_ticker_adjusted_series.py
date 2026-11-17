@@ -4,7 +4,8 @@ Testler **çıktı düzeyindedir** ve **offline**'dır; fixture'lar elle yazılm
 Float katmanı olduğu için karşılaştırmalar ``pytest.approx`` (rel=1e-9).
 
 El hesabı örnekleri:
-  - saf fonksiyon: factor = adj/close; OHLC × factor; Volume aynı
+  - saf fonksiyon: factor = adj/close; OHLC × factor; Volume'a DOKUNULMAZ
+    (girdi neyse o çıkar; lot/split düzeltmesi çağırandan gelir)
   - BIMAS-benzeri: nominal 813,00 → 414,00 (oran 0,5092); baz seride
     yarıya inmiş olduğundan düzeltilmiş oran ≈ 1,0000
   - TUPRS-benzeri: nominal −%6,71; factor = (C−D)/C = 0,92807 → düzeltilmiş
@@ -47,8 +48,8 @@ def _raw(rows, index=None):
 # ---------------------------------------------------------------------------
 
 
-def test_pure_function_multiplies_ohlc_and_keeps_volume():
-    """OHLC = raw × factor (satır bazlı); Volume DEĞİŞMEZ."""
+def test_pure_function_multiplies_ohlc_and_passes_volume_through():
+    """OHLC = raw × factor (satır bazlı); Volume'a DOKUNULMAZ (pass-through)."""
     raw = _raw(
         [
             (10.0, 11.0, 9.0, 10.0, 100.0),
@@ -67,11 +68,11 @@ def test_pure_function_multiplies_ohlc_and_keeps_volume():
     # bar1 factor = 12/12 = 1.0 → değişmez
     assert frame["Close"].iloc[1] == pytest.approx(12.0, rel=1e-9)
 
-    # Volume birebir aynı (düzeltilmez)
+    # Volume pass-through: saf fonksiyon girdisini değiştirmeden geçirir
     pd.testing.assert_series_equal(
         frame["Volume"], raw["Volume"], check_names=False, check_exact=True
     )
-    assert meta["volume_policy"] == "raw (not adjusted)"
+    assert meta["volume_policy"].startswith("split_lot_adjusted")
     assert meta["factor_min"] == pytest.approx(0.9, rel=1e-12)
     assert meta["factor_max"] == pytest.approx(1.0, rel=1e-12)
 
@@ -335,8 +336,8 @@ def test_missing_close_column_raises():
         build_adjusted_frame(raw, pd.Series([1.0]))
 
 
-def test_volume_identical_after_adjustment():
-    """REQ-002.4: Volume ham seriyle birebir aynı."""
+def test_pure_function_volume_is_a_verbatim_pass_through():
+    """Saf fonksiyon Volume'u DEĞİŞTİRMEZ (girdi = çıktı)."""
     raw = _raw(
         [
             (10.0, 11.0, 9.0, 10.0, 1234.0),
@@ -423,3 +424,34 @@ def test_exports_reachable():
     assert bp.build_adjusted_frame is build_adjusted_frame
     assert bp.to_raw_price is to_raw_price
     assert bp.Ticker.history_adjusted is not None
+
+
+# ---------------------------------------------------------------------------
+# Volume semantiği — split/lot düzeltmesi (dürüst künye pini)
+# ---------------------------------------------------------------------------
+
+
+def test_volume_policy_documents_split_lot_adjustment() -> None:
+    """Künye, Volume'un split/lot düzeltilmiş olduğunu AÇIKÇA söyler.
+
+    ``history_adjusted`` tabanı ``history(adjust=True)``tir: %100 bedelsizde
+    lot sayısı ikiye katlandığı için o serinin Volume'u eski günlerde YARI
+    bazda kalır. Ham (``adjust=False``) hacim kullanılsaydı bedelsiz gününden
+    sonra yapay bir sıçrama oluşur ve göreli hacim (rel-volume) yanlış
+    hesaplanırdı — 078a klimaks tespitinde sahte SC üretirdi.
+    """
+    raw = _raw(
+        [
+            (10.0, 11.0, 9.0, 10.0, 1234.0),
+            (11.0, 12.0, 10.0, 11.0, 98765.0),
+        ]
+    )
+    adj = pd.Series([10.0, 11.0], index=raw.index)
+    _, meta = build_adjusted_frame(raw, adj)
+
+    policy = meta["volume_policy"]
+    assert policy.startswith("split_lot_adjusted"), policy
+    assert "dividend-independent" in policy
+    assert "not TL turnover" in policy
+    # eski yanıltıcı ifade geri gelmemeli
+    assert "raw (not adjusted)" not in policy

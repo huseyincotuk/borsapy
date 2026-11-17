@@ -143,8 +143,14 @@ def build_adjusted_frame(
     **Kapsam:** hedef seri = TradingView ``ADJ`` açık (bedelsiz/bedelli her
     zaman açık × temettü çarpanı).
 
-    ``Volume`` **DEĞİŞMEZ**: gerçek işlem hacmi döner (rehber göreli hacim
-    ister → ölçek etkisi yok).
+    ``Volume`` **SPLIT/LOT BAZINDA DÜZELTİLMİŞTİR** (``history(adjust=True)``
+    ne verirse o; ayrıca çarpılmaz). Bu, **göreli hacim için gereken tutarlı
+    bazdır**: %100 bedelsizde lot sayısı ikiye katlanır, dolayısıyla HAM hacim
+    eski günlerde yarı bazda kalır ve bedelsiz gününden sonra yapay bir sıçrama
+    gösterir. Ölçüldü (BIMAS 14.05.2026 bedelsizi): düzeltilmiş seride
+    bedelsiz sonrası rel-volume 0,92 iken ham seride 1,76 — ham hacim
+    kullanılsaydı sahte klimaks üretilirdi. Volume **TL (tutar) hacmi değildir**
+    ve temettü çarpanıyla çarpılmaz (temettü lotu değiştirmez).
 
     ``raw_close`` sütunu = ``raw["Close"]`` (split-düzeltilmiş, temettü
     çarpanı UYGULANMAMIŞ grafik fiyatı) → ``to_raw_price`` ile tutarlı geri
@@ -195,7 +201,11 @@ def build_adjusted_frame(
                 "bedelsizde kolon 0 yazıyor"
             ),
         },
-        "volume_policy": "raw (not adjusted)",
+        # ``raw`` already carries split/lot-adjusted volume (history(adjust=True));
+        # this is the CONSISTENT basis relative volume needs.  It is NOT
+        # dividend-adjusted (dividends do not change the lot count) and it is
+        # NOT a TL turnover figure.
+        "volume_policy": "split_lot_adjusted (dividend-independent, not TL turnover)",
         "row_count": 0,
         "first": None,
         "last": None,
