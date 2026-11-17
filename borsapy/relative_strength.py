@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
+from datetime import time as dt_time
 from typing import Any
 
 import numpy as np
@@ -34,6 +35,69 @@ DEFAULT_RS_LOOKBACK: int = 20
 #: RS "sıçrama" olayı için varsayılan z eşiği. **PARAMETRE — KALİBRE
 #: EDİLMEDİ** (EK-B.2).
 DEFAULT_RS_Z_THRESHOLD: float = 1.0
+
+
+# ---------------------------------------------------------------------------
+# Bar kapanışı ("oluşmakta olan bar") yardımcıları
+# ---------------------------------------------------------------------------
+#
+# Borsapy'de BIST **seans kapanış saati** kaynağı YOKTUR (``bist_calendar``
+# yalnız tatil/yarım gün bilir). Bu yüzden kapanış saati **uydurulmaz**:
+# çağıran taraf ``session_close`` ile verir, verilmezse son barın durumu
+# ``None`` (VERİ YOK) olarak raporlanır.
+
+
+def _series_tz(index: Any) -> Any:
+    """Serinin bar dilimini (tz) döndür; naive ise ``None``."""
+    if isinstance(index, pd.DatetimeIndex) and index.tz is not None:
+        return index.tz
+    return None
+
+
+def _label_to_bar_tz(label: Any, bar_tz: Any) -> pd.Timestamp:
+    """İşlenmiş seri etiketini (UTC-naive) bar dilimine geri çevir."""
+    ts = pd.Timestamp(label)
+    if bar_tz is None:
+        return ts
+    if ts.tzinfo is None:
+        return ts.tz_localize("UTC").tz_convert(bar_tz)
+    return ts.tz_convert(bar_tz)
+
+
+def _bar_tz_to_label(ts: pd.Timestamp, bar_tz: Any) -> pd.Timestamp:
+    """Bar dilimindeki anı seri index çerçevesine (UTC-naive) çevir."""
+    if bar_tz is None:
+        return ts
+    return ts.tz_convert("UTC").tz_localize(None)
+
+
+def _as_of_ceiling(as_of: Any, bar_tz: Any) -> pd.Timestamp:
+    """``as_of`` kesim sınırını seri index çerçevesinde hesapla (dahil).
+
+    Saat bilgisi olmayan bir ``as_of`` (``date`` veya gece yarısı) **o günün
+    tamamını** kapsar; saat verilmişse tam o an (bar diliminde) sınırdır.
+    """
+    ts = pd.Timestamp(as_of)
+    date_only = (ts.hour, ts.minute, ts.second, ts.microsecond) == (0, 0, 0, 0)
+    if ts.tzinfo is None and bar_tz is not None:
+        ts = ts.tz_localize(bar_tz)
+    if date_only:
+        ts = ts.normalize() + pd.Timedelta(days=1) - pd.Timedelta(nanoseconds=1)
+    return _bar_tz_to_label(ts, bar_tz)
+
+
+def _now_in_bar_tz(now: Any, bar_tz: Any) -> pd.Timestamp:
+    """``now`` (enjekte edilebilir saat) değerini bar dilimine çevir."""
+    if now is None:
+        return pd.Timestamp.now(tz=bar_tz) if bar_tz is not None else pd.Timestamp.now()
+    ts = pd.Timestamp(now)
+    if bar_tz is None:
+        if ts.tzinfo is None:
+            return ts
+        return ts.tz_convert("UTC").tz_localize(None)
+    if ts.tzinfo is None:
+        return ts.tz_localize(bar_tz)
+    return ts.tz_convert(bar_tz)
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +176,10 @@ def relative_strength_series(
     normalize: bool = True,
     base: int = 0,
     lookback: int = DEFAULT_RS_LOOKBACK,
+    as_of: Any = None,
+    closed_bars_only: bool = False,
+    session_close: dt_time | None = None,
+    now: Any = None,
 ) -> tuple[pd.Series, dict[str, Any]]:
     """Hisse/endeks oranı (göreli güç) serisini künyesiyle üret.
 
@@ -141,19 +209,41 @@ def relative_strength_series(
         lookback: Trendin eğim penceresi (bar). **PARAMETRE — KALİBRE
             EDİLMEDİ.**
 
+        as_of: Kesim (dahil). Verilirse yalnız bu ana kadarki barlar kullanılır
+            ve atlananlar ``n_dropped_after_as_of`` ile sayılır. Saat
+            verilmemiş bir ``as_of`` (ör. ``date(2026, 11, 14)``) **o günün
+            tamamını** kapsar. Kesim gün içi tekrarlanabilirliği sağlar:
+            aynı ``as_of`` iki koşuda aynı seriyi verir.
+        closed_bars_only: ``True`` ise **oluşmakta olan (kapanmamış) son bar
+            atılır**. Barın kapanıp kapanmadığı ancak ``session_close``
+            biliniyorsa söylenebilir: son bar bugüne ait ve ``session_close``
+            verilmemişse **``ValueError``** (tahmin yasak, VERİ YOK).
+        session_close: BIST seans kapanış saati (bar diliminde yorumlanır).
+            **PARAMETRE** — borsapy'de kaynaklı kapanış saati YOKTUR, çağıran
+            verir. Verilmezse son barın durumu ``last_bar_partial=None``
+            (VERİ YOK) olarak raporlanır.
+        now: "Şimdi" (test enjeksiyonu). ``None`` ise gerçek saat kullanılır.
+            Bar dilimine çevrilir; naive verilirse bar diliminde kabul edilir.
+
     Returns:
         ``(rs, meta)``. ``rs``: index'i kesişim olan float seri (adı
         ``RS``); ``meta``: aşağıdaki alanlarla künye sözlüğü —
 
         ``source``, ``align``, ``n_common``, ``n_dropped_stock``,
-        ``n_dropped_index``, ``base_date``, ``base_value``, ``last_value``,
-        ``change_pct``, ``trend`` (``guclu``/``zayif``/``yatay``),
-        ``trend_slope``, ``trend_rule``, ``lookback``, ``normalized``,
-        ``series_sha256``, ``warnings``.
+        ``n_dropped_index``, ``n_dropped_after_as_of``, ``bars_used``,
+        ``base_date``, ``base_value``, ``last_value``, ``change_pct``,
+        ``trend`` (``guclu``/``zayif``/``yatay``), ``trend_slope``,
+        ``trend_rule``, ``lookback``, ``trend_horizon_bars``,
+        ``change_pct_horizon_bars``, ``as_of``, ``closed_bars_only``,
+        ``session_close``, ``last_bar_date``, ``last_bar_partial``
+        (``True``/``False``/``None``=VERİ YOK), ``dropped_forming_bar``,
+        ``normalized``, ``series_sha256``, ``warnings``.
 
     Raises:
         ValueError: ``Close`` eksik, kesişim boş, ``lookback < 2``,
-            ``base`` aralık dışı veya baz değeri geçersiz (``<= 0`` / ``NaN``).
+            ``base`` aralık dışı, baz değeri geçersiz (``<= 0`` / ``NaN``),
+            ``as_of`` sonrası < 2 bar kalması veya ``closed_bars_only=True``
+            iken son barın kapanmış olduğunun bilinememesi (VERİ YOK).
     """
     stock_close = _as_close_series(stock, "stock")
     index_close = _as_close_series(index, "index")
@@ -228,6 +318,65 @@ def relative_strength_series(
     if lookback < 2:
         raise ValueError(f"lookback must be >= 2; got {lookback}")
 
+    # --- bar dilimi: kesim/kapanış karşılaştırmaları için ---
+    bar_tz = _series_tz(stock_close.index) or _series_tz(index_close.index)
+
+    # --- as_of kesimi (dahil) — gün içi tekrarlanabilirlik ---
+    n_dropped_after_as_of = 0
+    if as_of is not None:
+        ceiling = _as_of_ceiling(as_of, bar_tz)
+        keep = ratio.index <= ceiling
+        n_dropped_after_as_of = int((~keep).sum())
+        if n_dropped_after_as_of:
+            ratio = ratio[keep]
+            warnings.append(
+                f"{n_dropped_after_as_of} bar(s) after as_of={as_of!r} were "
+                "dropped (cutoff is inclusive)"
+            )
+        if len(ratio) < 2:
+            raise ValueError(
+                f"relative_strength_series: as_of={as_of!r} leaves "
+                f"{len(ratio)} bar(s); at least 2 are required"
+            )
+
+    # --- son bar oluşmakta mı? (kapanış saati UYDURULMAZ) ---
+    last_bar_date = _label_to_bar_tz(ratio.index[-1], bar_tz)
+    now_local = _now_in_bar_tz(now, bar_tz)
+    last_bar_partial: bool | None
+    if last_bar_date.date() != now_local.date():
+        # Son bar önceki seansa ait → kapanmış (saat bilgisi gerekmez).
+        last_bar_partial = False
+    elif session_close is None:
+        last_bar_partial = None
+        warnings.append(
+            "last bar belongs to today and no session_close was supplied — it may "
+            "be a forming (unclosed) bar: trend/change_pct can change intraday "
+            "(VERİ YOK: kapanış saati bilinmiyor); pass as_of= or "
+            "closed_bars_only=True with session_close="
+        )
+    else:
+        last_bar_partial = now_local.time() < session_close
+
+    dropped_forming_bar = False
+    if closed_bars_only:
+        if last_bar_partial is None:
+            raise ValueError(
+                "closed_bars_only=True but the last bar belongs to today and "
+                "session_close is unknown — refusing to guess whether the bar is "
+                "closed (VERİ YOK); pass session_close= or as_of="
+            )
+        if last_bar_partial:
+            ratio = ratio.iloc[:-1]
+            dropped_forming_bar = True
+            warnings.append(
+                "forming (unclosed) last bar dropped per closed_bars_only=True"
+            )
+            if len(ratio) < 2:
+                raise ValueError(
+                    "relative_strength_series: dropping the forming bar leaves "
+                    f"{len(ratio)} bar(s); at least 2 are required"
+                )
+
     # --- normalizasyon (baz günü 100) ---
     if normalize:
         if base < 0 or base >= len(ratio):
@@ -290,6 +439,8 @@ def relative_strength_series(
         "n_common": int(len(out)),
         "n_dropped_stock": n_dropped_stock,
         "n_dropped_index": n_dropped_index,
+        "n_dropped_after_as_of": int(n_dropped_after_as_of),
+        "bars_used": int(len(out)),
         "base_date": str(pd.Timestamp(out.index[base]).date()),
         "base_value": ratio_base_value,
         "last_value": last_value,
@@ -302,6 +453,16 @@ def relative_strength_series(
             "PARAMETRE — KALİBRE EDİLMEDİ)"
         ),
         "lookback": int(lookback),
+        "trend_horizon_bars": int(min(lookback, len(out))),
+        "change_pct_horizon_bars": int(len(out)),
+        "as_of": None if as_of is None else str(as_of),
+        "closed_bars_only": bool(closed_bars_only),
+        "session_close": (
+            None if session_close is None else session_close.strftime("%H:%M:%S")
+        ),
+        "last_bar_date": str(_label_to_bar_tz(out.index[-1], bar_tz).date()),
+        "last_bar_partial": last_bar_partial,
+        "dropped_forming_bar": bool(dropped_forming_bar),
         "normalized": bool(normalize),
         "series_sha256": _sha256_series(out),
         "warnings": warnings,

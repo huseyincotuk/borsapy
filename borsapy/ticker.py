@@ -1154,6 +1154,10 @@ class Ticker(TechnicalMixin, TwitterMixin):
         normalize: bool = True,
         base: int = 0,
         lookback: int = 20,
+        as_of: Any = None,
+        closed_bars_only: bool = False,
+        session_close: Any = None,
+        now: Any = None,
     ) -> tuple[pd.Series, dict]:
         """Endekse göreli güç (hisse/endeks oranı) — düzeltilmiş hisse.
 
@@ -1173,6 +1177,13 @@ class Ticker(TechnicalMixin, TwitterMixin):
             base: Normalizasyon bazının 0-tabanlı konumu.
             lookback: Trend eğimi penceresi (bar). **PARAMETRE — KALİBRE
                 EDİLMEDİ.**
+            as_of: Kesim (dahil) — gün içi tekrarlanabilirlik için.
+            closed_bars_only: ``True`` ise oluşmakta olan son bar atılır.
+                Son bar bugüne ait ve ``session_close`` yoksa ``ValueError``
+                (tahmin yasak).
+            session_close: BIST seans kapanış saati (bar diliminde).
+                **PARAMETRE** — kaynaklı kapanış saati borsapy'de YOKTUR.
+            now: "Şimdi" (test enjeksiyonu; ``None`` = gerçek saat).
 
         Returns:
             ``(rs, meta)``. ``meta`` :func:`borsapy.relative_strength.
@@ -1216,6 +1227,10 @@ class Ticker(TechnicalMixin, TwitterMixin):
             normalize=normalize,
             base=base,
             lookback=lookback,
+            as_of=as_of,
+            closed_bars_only=closed_bars_only,
+            session_close=session_close,
+            now=now,
         )
         meta = dict(meta)
         meta.update(

@@ -10,6 +10,9 @@ El hesabı örneği (sabit hisse, düşen endeks):
 
 from __future__ import annotations
 
+import dataclasses
+from datetime import time as dt_time
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -314,8 +317,6 @@ def test_events_empty_series_returns_empty_tuple():
 
 
 def test_rs_event_is_frozen():
-    import dataclasses
-
     e = RSEvent(index=pd.Timestamp("2026-01-01"), kind="yeni_yuksek", value=1.0, z_score=0.0)
     assert e.kalibre_edilmedi is True
     with pytest.raises(dataclasses.FrozenInstanceError):
@@ -399,3 +400,217 @@ def test_exports_reachable():
     assert bp.relative_strength_events is relative_strength_events
     assert bp.RSEvent is RSEvent
     assert hasattr(bp.Ticker, "relative_strength")
+
+
+# ---------------------------------------------------------------------------
+# REQ-004 — gün içi tekrarlanabilirlik: as_of kesimi + oluşmakta bar
+#   (W3i yaması: trend etiketi açık seans barı yüzünden dönüyordu)
+# ---------------------------------------------------------------------------
+
+_TZ = "Europe/Istanbul"
+
+
+def _today_bars(n: int = 5) -> pd.DatetimeIndex:
+    """Bugünle biten, yerel saat 09:00 etiketli (tz-aware) barlar."""
+    today = pd.Timestamp.now(tz=_TZ).normalize()
+    days = [today - pd.Timedelta(days=n - 1 - i) for i in range(n)]
+    return pd.DatetimeIndex([d + pd.Timedelta(hours=9) for d in days])
+
+
+def _today_series(values, n=5):
+    return pd.Series(values, index=_today_bars(n), dtype="float64")
+
+
+def _local_now(hour: int, minute: int = 0) -> pd.Timestamp:
+    today = pd.Timestamp.now(tz=_TZ).normalize()
+    return today + pd.Timedelta(hours=hour, minutes=minute)
+
+
+_OLD = pd.to_datetime(
+    ["2019-03-04", "2019-03-05", "2019-03-06", "2019-03-07", "2019-03-08"]
+)
+
+
+def test_as_of_cutoff_matches_manual_truncation():
+    """as_of → yalnız o ana kadarki barlar; sonuç elle kesmeyle BİREBİR."""
+    stock = _s([10.0, 10.0, 10.0, 10.0, 10.0], _OLD)
+    index = _s([100.0, 95.0, 90.0, 85.0, 80.0], _OLD)
+
+    rs_cut, meta = relative_strength_series(stock, index, normalize=False, as_of="2019-03-06")
+    rs_manual, _ = relative_strength_series(
+        stock.iloc[:3], index.iloc[:3], normalize=False
+    )
+
+    assert meta["n_dropped_after_as_of"] == 2
+    assert meta["bars_used"] == 3
+    assert rs_cut.tolist() == pytest.approx(rs_manual.tolist(), rel=1e-12)
+    assert meta["last_bar_date"] == "2019-03-06"
+
+
+def test_as_of_with_explicit_time_is_honored():
+    """Saatli as_of tam o an sınırdır (bar diliminde) — o günün barı DÜŞER."""
+    idx = pd.DatetimeIndex(
+        [pd.Timestamp(f"2019-03-0{d} 09:00", tz=_TZ) for d in (4, 5, 6, 7)]
+    )
+    stock = pd.Series([10.0, 10.0, 10.0, 10.0], index=idx, dtype="float64")
+    index = pd.Series([100.0, 95.0, 90.0, 85.0], index=idx, dtype="float64")
+
+    rs, meta = relative_strength_series(
+        stock, index, normalize=False, as_of=pd.Timestamp("2019-03-06 08:59")
+    )
+
+    assert meta["n_dropped_after_as_of"] == 2
+    assert len(rs) == 2
+    assert meta["last_bar_date"] == "2019-03-05"
+
+
+def test_as_of_makes_result_reproducible():
+    """Aynı as_of iki koşuda aynı sha256 → gün içi sonuç SABİT."""
+    stock = _today_series([10.0, 10.0, 10.0, 10.0, 10.0])
+    index = _today_series([100.0, 95.0, 90.0, 85.0, 80.0])
+    cutoff = str(_today_bars(5)[-2].date())  # dün: bugünün barı dışarıda
+
+    _, m1 = relative_strength_series(stock, index, as_of=cutoff, lookback=2)
+    _, m2 = relative_strength_series(stock, index, as_of=cutoff, lookback=2)
+
+    assert m1["series_sha256"] == m2["series_sha256"]
+    assert m1["bars_used"] == 4
+    assert m1["last_bar_date"] == cutoff
+
+
+def test_historical_last_bar_is_not_partial():
+    """Geçmiş barlarda son bar KAPANMIŞ — session_close gerekmez."""
+    stock = _s([10.0, 10.0, 10.0, 10.0], _OLD[:4])
+    index = _s([100.0, 95.0, 90.0, 85.0], _OLD[:4])
+
+    rs, meta = relative_strength_series(stock, index)
+
+    assert meta["last_bar_partial"] is False
+    assert meta["dropped_forming_bar"] is False
+    assert meta["session_close"] is None
+    assert meta["warnings"] == []
+    assert len(rs) == 4
+
+
+def test_last_bar_partial_false_when_session_closed():
+    """Kapanış saatinden sonra son bar kapanmış sayılır → atılmaz."""
+    stock = _today_series([10.0, 10.0, 10.0, 10.0, 10.0])
+    index = _today_series([100.0, 95.0, 90.0, 85.0, 80.0])
+
+    rs, meta = relative_strength_series(
+        stock,
+        index,
+        normalize=False,
+        closed_bars_only=True,
+        session_close=dt_time(18, 0),
+        now=_local_now(18, 30),
+    )
+
+    assert meta["last_bar_partial"] is False
+    assert meta["dropped_forming_bar"] is False
+    assert len(rs) == 5
+    assert meta["last_bar_date"] == str(_today_bars(5)[-1].date())
+
+
+def test_closed_bars_only_drops_forming_bar_and_matches_truncation():
+    """Seans AÇIKKEN son bar atılır; sonuç elle kesmeyle BİREBİR (çıktı düzeyi)."""
+    stock = _today_series([10.0, 10.0, 10.0, 10.0, 10.0])
+    index = _today_series([100.0, 95.0, 90.0, 85.0, 80.0])
+
+    rs_closed, meta = relative_strength_series(
+        stock,
+        index,
+        normalize=False,
+        closed_bars_only=True,
+        session_close=dt_time(18, 0),
+        now=_local_now(12, 0),
+    )
+    rs_manual, _ = relative_strength_series(
+        stock.iloc[:-1], index.iloc[:-1], normalize=False
+    )
+
+    assert meta["last_bar_partial"] is True
+    assert meta["dropped_forming_bar"] is True
+    assert meta["bars_used"] == 4
+    assert rs_closed.tolist() == pytest.approx(rs_manual.tolist(), rel=1e-12)
+
+
+def test_closed_bars_only_without_session_close_raises():
+    """Son bar bugüne ait + kapanış saati yok → TAHMİN YASAK (ValueError)."""
+    stock = _today_series([10.0, 10.0, 10.0, 10.0], n=4)
+    index = _today_series([100.0, 95.0, 90.0, 85.0], n=4)
+
+    with pytest.raises(ValueError, match="session_close"):
+        relative_strength_series(stock, index, closed_bars_only=True)
+
+
+def test_today_bar_without_session_close_reports_none_and_warns():
+    """Kapanış saati verilmezse durum VERİ YOK (None) + uyarı — sessiz sayı basılmaz."""
+    stock = _today_series([10.0, 10.0, 10.0, 10.0], n=4)
+    index = _today_series([100.0, 95.0, 90.0, 85.0], n=4)
+
+    rs, meta = relative_strength_series(stock, index)
+
+    assert meta["last_bar_partial"] is None
+    assert meta["dropped_forming_bar"] is False
+    assert len(rs) == 4  # varsayılan davranış DEĞİŞMEDİ
+    assert any("forming" in w for w in meta["warnings"])
+
+
+def test_forming_bar_can_flip_trend_sign():
+    """BLOKLAYICI BULGU regresyonu: oluşmakta bar trend etiketini DÖNDÜRÜR.
+
+    BIMAS/EKGYO'nun gerçek verideki davranışı: kapanmış seride eğim negatif
+    (``zayif``), gün içi sıçrama dahil edilince eğim pozitif (``guclu``).
+    """
+    index = _today_series([100.0] * 5)
+    stock = _today_series([100.0, 99.0, 98.0, 97.0, 105.0])  # oran: 1 / 0,99 / 0,98 / 0,97 / 1,05
+
+    _, open_meta = relative_strength_series(stock, index, normalize=False, lookback=4)
+    _, closed_meta = relative_strength_series(
+        stock,
+        index,
+        normalize=False,
+        lookback=4,
+        closed_bars_only=True,
+        session_close=dt_time(18, 0),
+        now=_local_now(12, 0),
+    )
+
+    assert open_meta["trend"] == "guclu"      # açık bar dahil → yanıltıcı
+    assert closed_meta["trend"] == "zayif"    # kapanmış barlar → gerçek
+    assert open_meta["change_pct"] > 0
+    assert closed_meta["change_pct"] < 0
+
+
+def test_meta_reports_horizons():
+    """Ufuklar künyede: trend 20 bar, change_pct tüm kullanılan barlar."""
+    stock = _s([10.0, 10.0, 10.0, 10.0, 10.0], _OLD)
+    index = _s([100.0, 95.0, 90.0, 85.0, 80.0], _OLD)
+
+    _, meta = relative_strength_series(stock, index, lookback=20)
+
+    assert meta["trend_horizon_bars"] == 5
+    assert meta["change_pct_horizon_bars"] == 5
+    assert meta["bars_used"] == 5
+
+
+def test_ticker_relative_strength_passes_through_cutoff(monkeypatch):
+    """Ticker.relative_strength yamayı uçtan uca taşır (as_of → 2 bar)."""
+    from borsapy.index import Index
+
+    def stub_index_history(self, period="1mo", interval="1d", start=None, end=None):
+        return pd.DataFrame({"Close": [100.0, 95.0, 90.0, 85.0]}, index=_IDX)
+
+    monkeypatch.setattr(Ticker, "history_adjusted", _stub_history_adjusted)
+    monkeypatch.setattr(Index, "history", stub_index_history)
+
+    rs, meta = Ticker("BIMAS").relative_strength(
+        index="XU100", period="2y", as_of="2026-01-06", lookback=2
+    )
+
+    assert meta["bars_used"] == 2
+    assert meta["n_dropped_after_as_of"] == 2
+    assert meta["as_of"] == "2026-01-06"
+    assert meta["stock_adjusted"] is True
+    assert len(rs) == 2
