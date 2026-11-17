@@ -9,6 +9,7 @@ Indicators can be used via:
 
 from __future__ import annotations
 
+import difflib
 import warnings
 from collections.abc import Sequence
 from datetime import datetime
@@ -1100,6 +1101,108 @@ _INDICATOR_REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     "vwap": ("High", "Low", "Close", "Volume"),
 }
 
+#: ``add_indicators`` tarafından kabul edilen ``**kwargs`` parametreleri —
+#: TEK KAYNAK (W3h). Her ad, ait olduğu gösterge(ler)e eşlenir. Gövdedeki
+#: 17 ``kwargs.get(...)`` çağrısıyla senkron tutulur; senkron bir testle
+#: pinlidir (kayarsa test kırılır).
+_SUPPORTED_KWARGS: dict[str, tuple[str, ...]] = {
+    "sma_period": ("sma",),
+    "ema_period": ("ema",),
+    "rsi_period": ("rsi",),
+    "bb_period": ("bollinger",),
+    "atr_period": ("atr",),
+    "adx_period": ("adx",),
+    "supertrend_period": ("supertrend",),
+    "supertrend_multiplier": ("supertrend",),
+    "hhv_period": ("hhv",),
+    "llv_period": ("llv",),
+    "mom_period": ("mom",),
+    "roc_period": ("roc",),
+    "wma_period": ("wma",),
+    "dema_period": ("dema",),
+    "tema_period": ("tema",),
+    "avwap_anchor": ("avwap",),
+    "avwap_column": ("avwap",),
+}
+
+
+def _validate_kwarg_value(name: str, value: Any) -> None:
+    """Tek bir parametrenin tür/aralık doğrulaması (W3h REQ-003).
+
+    Args:
+        name: Parametre adı (``_SUPPORTED_KWARGS`` anahtarı).
+        value: Verilen değer.
+
+    Raises:
+        ValueError: ``*_period`` için ``int >= 1`` (bool reddedilir);
+            ``*_multiplier`` / ``*_std_dev`` için sonlu ``float > 0``.
+            Diğer adlar (``avwap_anchor`` / ``avwap_column``) tür
+            doğrulamasına tabi değildir — alt katman kendi sözleşmesini
+            uygular.
+    """
+    if name.endswith("_period"):
+        if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+            raise ValueError(
+                f"parameter '{name}' must be an integer >= 1; got {value!r}"
+            )
+        if int(value) < 1:
+            raise ValueError(f"parameter '{name}' must be >= 1; got {value!r}")
+        return
+
+    if name.endswith(("_multiplier", "_std_dev")):
+        if isinstance(value, bool):
+            raise ValueError(
+                f"parameter '{name}' must be a finite number > 0; got {value!r}"
+            )
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"parameter '{name}' must be a finite number > 0; got {value!r}"
+            ) from None
+        if not np.isfinite(number) or not (number > 0):
+            raise ValueError(
+                f"parameter '{name}' must be a finite number > 0; got {value!r}"
+            )
+
+
+def _validate_kwargs(indicators: list[str], kwargs: dict[str, Any]) -> None:
+    """``add_indicators`` için ``**kwargs`` fail-loud doğrulaması (W3h).
+
+    **Yalnız açık gösterge listesi verildiğinde** çağrılır. ``indicators``
+    ``None`` iken (varsayılan "hepsi" yolu) UYGULANMAZ: kullanıcı tüm
+    göstergeleri istemiştir, parametreler farklı göstergelere ait olabilir —
+    o yol byte-identical kalır (REQ-002 istisnası).
+
+    Args:
+        indicators: Normalize edilmiş, doğrulanmış gösterge listesi.
+        kwargs: Kullanıcının verdiği parametreler.
+
+    Raises:
+        ValueError: Bilinmeyen parametre (desteklenen liste + yakın eşleşme
+            önerisi), ilgisiz parametre (ait olduğu gösterge istenmemiş) veya
+            geçersiz değer.
+    """
+    requested = set(indicators)
+    for name, value in kwargs.items():
+        owners = _SUPPORTED_KWARGS.get(name)
+        if owners is None:
+            suggestions = difflib.get_close_matches(
+                name, list(_SUPPORTED_KWARGS), n=1, cutoff=0.8
+            )
+            hint = f" (did you mean '{suggestions[0]}'?)" if suggestions else ""
+            raise ValueError(
+                f"unknown parameter '{name}'; supported: "
+                f"{sorted(_SUPPORTED_KWARGS)}{hint}"
+            )
+        if not (requested & set(owners)):
+            target = indicators[0] if len(indicators) == 1 else indicators
+            raise ValueError(
+                f"parameter '{name}' does not apply to indicator {target!r}; "
+                f"it applies to {list(owners)}"
+            )
+        _validate_kwarg_value(name, value)
+
 
 def _validate_indicators(df: pd.DataFrame, indicators: list[str]) -> None:
     """``add_indicators`` için fail-loud ön doğrulama (W3f).
@@ -1173,6 +1276,17 @@ def add_indicators(
             - wma_period: WMA period (default 20)
             - dema_period: DEMA period (default 20)
             - tema_period: TEMA period (default 20)
+            - avwap_anchor / avwap_column: AVWAP anchor and price column
+
+            Parameters fail LOUD (W3h) **when an explicit indicator list is
+            given**: an unknown key, a key that does not belong to any
+            requested indicator (e.g. ``rsi_period`` with ``["sma"]``), or a
+            bad value (``*_period`` needs ``int >= 1``, bool rejected;
+            ``*_multiplier``/``*_std_dev`` need a finite ``float > 0``)
+            raises ValueError before any column is added (atomic), with the
+            supported list and a ``did you mean ...?`` hint. With
+            ``indicators=None`` parameters are NOT validated — that default
+            "everything" path is byte-identical by design.
 
     Returns:
         DataFrame with indicator columns added
@@ -1199,6 +1313,12 @@ def add_indicators(
         # olmasın diye; bu davranış korunur).
         indicators = [name.strip().lower() for name in indicators]
         _validate_indicators(df, indicators)
+        # W3h (fail-loud): parametreler de hesaptan ÖNCE doğrulanır —
+        # bilinmeyen / ilgisiz / geçersiz değerli kwargs sessizce
+        # yutulmaz. None yolunda UYGULANMAZ (byte-identical korunur):
+        # kullanıcı "hepsi" dedi, parametreler farklı göstergelere ait
+        # olabilir.
+        _validate_kwargs(indicators, kwargs)
 
     # Get periods from kwargs
     sma_period = kwargs.get("sma_period", 20)
