@@ -1,10 +1,13 @@
 """Ticker class for stock data - yfinance-like API."""
 
+import hashlib
+import math
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from functools import cached_property
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from borsapy._providers.kap import get_kap_provider
@@ -66,6 +69,261 @@ def _compute_adj_close(
         factor.loc[before_mask] *= adj
 
     return close * factor
+
+
+#: Split tespiti eşiği (günlük getiri < −%15). **PARAMETRE — KALİBRE
+#: EDİLMEDİ** (EK-B.3): BIST günlük fiyat limiti ~%10 olduğu için −%15
+#: altındaki düşüşler sermaye artırımı (bedelsiz/bedelli) kaynaklıdır.
+SPLIT_DETECT_RETURN_THRESHOLD: float = -0.15
+
+#: ``build_adjusted_frame`` çıktısının sütun sırası (sabit — sha256
+#: determinizmi buna dayanır).
+_ADJUSTED_FRAME_COLUMNS: tuple[str, ...] = (
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Volume",
+    "raw_close",
+)
+
+
+def to_raw_price(value: float, factor: float) -> float:
+    """Düzeltilmiş bir seviyeyi (kutu sınırı, stop) gerçek fiyata çevir.
+
+    Düzeltilmiş seride ``adjusted = raw_level × factor`` olduğundan ters
+    çevrim bölmedir. Kutu sınırı raporu **iki fiyatla** yazılır
+    (ERRATUM §H.3 künye): düzeltilmiş seviye + gerçek fiyat.
+
+    Not: Float katmanı (gösterge fiyatı; muhasebe değeri değil).
+
+    Args:
+        value: Düzeltilmiş serideki seviye.
+        factor: O satırın ``Adj Close / Close`` çarpanı (> 0).
+
+    Returns:
+        Gerçek (grafik) fiyat = ``value / factor``.
+
+    Raises:
+        ValueError: ``factor`` sonlu ve > 0 değilse.
+    """
+    f = float(factor)
+    if not math.isfinite(f) or not (f > 0):
+        raise ValueError(f"factor must be finite and > 0; got {factor!r}")
+    return float(value) / f
+
+
+def _frame_sha256(frame: pd.DataFrame) -> str:
+    """Düzeltilmiş frame'in deterministik sha256'sı (mühür için).
+
+    Sütun adları + index etiketleri + float64 değer baytları hash'lenir;
+    aynı girdi iki koşumda aynı digest'i verir.
+    """
+    values = frame.to_numpy(dtype="float64")
+    h = hashlib.sha256()
+    h.update("|".join(str(c) for c in frame.columns).encode("utf-8"))
+    h.update("|".join(str(i) for i in frame.index).encode("utf-8"))
+    h.update(str(values.shape).encode("utf-8"))
+    h.update(np.ascontiguousarray(values).tobytes())
+    return h.hexdigest()
+
+
+def build_adjusted_frame(
+    raw: pd.DataFrame,
+    adj_close: pd.Series,
+    *,
+    nominal_close: pd.Series | None = None,
+) -> tuple[pd.DataFrame, dict]:
+    """Tam düzeltilmiş fiyat serisini (split × temettü) künyesiyle üret.
+
+    **Tek hesap yolu:** ``factor = Adj Close / Close`` — *saf temettü*
+    çarpanı (split zaten ``raw`` Close'un içinde). ``OHLC × factor`` satır
+    bazlı uygulanır. İkinci bir formül yoktur.
+
+    **Kapsam:** hedef seri = TradingView ``ADJ`` açık (bedelsiz/bedelli her
+    zaman açık × temettü çarpanı).
+
+    ``Volume`` **DEĞİŞMEZ**: gerçek işlem hacmi döner (rehber göreli hacim
+    ister → ölçek etkisi yok).
+
+    ``raw_close`` sütunu = ``raw["Close"]`` (split-düzeltilmiş, temettü
+    çarpanı UYGULANMAMIŞ grafik fiyatı) → ``to_raw_price`` ile tutarlı geri
+    çevrim. Nominal (split öncesi) fiyat isteniyorsa ``history(adjust=False)``
+    kullanılmalı (kapsam dışı).
+
+    Not: Float katmanı — gösterge fiyatı, muhasebe değeri değil. ``NaN``
+    politika: factor ``NaN`` ise o satır ``NaN`` (uydurma yok, ``inf`` asla).
+
+    Args:
+        raw: Split-düzeltilmiş OHLCV frame (``history(adjust=True)``).
+        adj_close: ``Adj Close`` serisi (``history(auto_adjust=True)``).
+            Index farklıysa ``raw.index``e hizalanır; eksik gün → ``NaN``.
+        nominal_close: Opsiyonel **split-düzeltilmemiş** Close serisi
+            (``history(adjust=False)``). Verilirse ``split_days_detected``
+            gerçek fiyat serisinden (getiri < −%15) tespit edilir; verilmezse
+            tespit YAPILMAZ (boş liste + uyarı — uydurma yok).
+
+    Returns:
+        ``(frame, meta)`` — ``frame``: Open, High, Low, Close, Volume,
+        raw_close; ``meta``: zorunlu künye alanları (source, split_adjusted,
+        dividend_adjusted, factor_min/max, dividend_days, split_days_detected,
+        volume_policy, row_count, first, last, frame_sha256, warnings).
+
+    Raises:
+        ValueError: ``Close`` sütunu yoksa veya ``adj_close`` boş/``None``
+            iken frame boş değilse (sessiz tek-katman düzeltme YASAK).
+    """
+    if "Close" not in raw.columns:
+        raise ValueError(
+            "build_adjusted_frame requires a 'Close' column in the raw frame; "
+            f"got columns {list(raw.columns)}"
+        )
+
+    meta: dict[str, Any] = {
+        "source": "tradingview (split-adjusted) × dividend factor",
+        "split_adjusted": True,
+        "dividend_adjusted": True,
+        "factor_min": None,
+        "factor_max": None,
+        "dividend_days": [],
+        "split_days_detected": {
+            "method": "price-series return < threshold (Stock Splits column NOT trusted)",
+            "threshold_pct": SPLIT_DETECT_RETURN_THRESHOLD * 100.0,
+            "events": [],
+            "note": (
+                "'Stock Splits' kolonu güvenilmez: BIMAS 14.05.2026 %100 "
+                "bedelsizde kolon 0 yazıyor"
+            ),
+        },
+        "volume_policy": "raw (not adjusted)",
+        "row_count": 0,
+        "first": None,
+        "last": None,
+        "frame_sha256": None,
+        "warnings": [],
+    }
+
+    if raw.empty:
+        # Boş girdi hata değil: boş frame + row_count=0 (W3g sözleşmesi).
+        empty = pd.DataFrame(
+            {col: pd.Series(dtype="float64") for col in _ADJUSTED_FRAME_COLUMNS},
+            index=raw.index,
+        )
+        meta["frame_sha256"] = _frame_sha256(empty)
+        meta["warnings"].append("empty frame: no rows returned")
+        return empty, meta
+
+    if adj_close is None or (isinstance(adj_close, pd.Series) and adj_close.empty):
+        raise ValueError(
+            "build_adjusted_frame requires 'Adj Close' (dividend factor); "
+            "use history(auto_adjust=True) — silent single-layer adjustment "
+            "is not allowed"
+        )
+
+    close = raw["Close"].astype("float64")
+    adj = pd.Series(adj_close, dtype="float64")
+    if not adj.index.equals(raw.index):
+        adj = adj.reindex(raw.index)
+
+    # TEK HESAP YOLU: saf temettü çarpanı (split adjust=True'den gelir).
+    factor = adj / close.where(close != 0)
+    factor = factor.replace([np.inf, -np.inf], np.nan)
+
+    frame = pd.DataFrame(index=raw.index)
+    for col in ("Open", "High", "Low", "Close"):
+        if col in raw.columns:
+            frame[col] = raw[col].astype("float64") * factor
+        else:
+            frame[col] = np.nan
+    frame["Volume"] = (
+        raw["Volume"].astype("float64") if "Volume" in raw.columns else np.nan
+    )
+    # Gerçek (grafik) fiyat: split-düzeltilmiş, temettü çarpanı uygulanmamış.
+    frame["raw_close"] = close
+    frame = frame[list(_ADJUSTED_FRAME_COLUMNS)]
+
+    # --- künye: çarpan aralığı ---
+    valid = factor.dropna()
+    if not valid.empty:
+        meta["factor_min"] = float(valid.min())
+        meta["factor_max"] = float(valid.max())
+
+    # --- künye: temettü günleri (factor kırılmasından türetilir) ---
+    prev = factor.shift(1)
+    changed = factor.notna() & prev.notna() & (
+        (factor - prev).abs() > 1e-12
+    )
+    for idx in factor.index[changed]:
+        f_now = float(factor.loc[idx])
+        f_prev = float(prev.loc[idx])
+        ratio = f_prev / f_now if f_now else float("nan")
+        implied = float(close.loc[idx]) * (1.0 - ratio) if pd.notna(ratio) else float("nan")
+        meta["dividend_days"].append(
+            {
+                "date": str(pd.Timestamp(idx).date()),
+                "factor_ratio": ratio,
+                "amount_implied": implied,
+                "amount_basis": (
+                    "TÜRETİM: raw_close × (1 − factor oranı) — kaynak "
+                    "temettü tablosu değil"
+                ),
+            }
+        )
+
+    # --- künye: split günleri (fiyat serisinden) ---
+    if nominal_close is None:
+        meta["warnings"].append(
+            "split_days_detected empty: split-unadjusted price series not "
+            "provided (nominal_close); detection not performed"
+        )
+    else:
+        nominal = pd.Series(nominal_close, dtype="float64")
+        if not nominal.index.equals(raw.index):
+            nominal = nominal.reindex(raw.index)
+        returns = nominal.pct_change(fill_method=None)
+        hit = returns < SPLIT_DETECT_RETURN_THRESHOLD
+        for idx in nominal.index[hit.fillna(False)]:
+            ret = float(returns.loc[idx])
+            meta["split_days_detected"]["events"].append(
+                {
+                    "date": str(pd.Timestamp(idx).date()),
+                    "return_pct": ret * 100.0,
+                    "implied_split_factor": (
+                        float(1.0 / (1.0 + ret)) if ret > -1.0 else None
+                    ),
+                }
+            )
+
+    # --- uyarılar (dürüstlük katmanı) ---
+    nan_rows = int(factor.isna().sum())
+    if nan_rows:
+        meta["warnings"].append(
+            f"{nan_rows} row(s) have NaN factor (Adj Close missing or Close 0); "
+            "those rows are NaN — nothing invented"
+        )
+    if meta["factor_min"] is not None and meta["factor_max"] is not None:
+        if meta["factor_max"] > 1.0 + 1e-12:
+            meta["warnings"].append(
+                "factor > 1 detected: dividend factor above 1 is unexpected — inspect"
+            )
+        if meta["factor_min"] >= 1.0 - 1e-12:
+            meta["warnings"].append(
+                "factor == 1 throughout: no dividend effect observed (dividend "
+                "data may be unavailable) — dividend layer applied but inactive"
+            )
+    split_dates = {e["date"] for e in meta["split_days_detected"]["events"]}
+    for day in meta["dividend_days"]:
+        if day["date"] in split_dates:
+            meta["warnings"].append(
+                f"Adj Close/Close oranı split gününde değişti ({day['date']}) — "
+                "incelenmeli"
+            )
+
+    meta["row_count"] = int(len(frame))
+    meta["first"] = str(pd.Timestamp(frame.index[0]).date())
+    meta["last"] = str(pd.Timestamp(frame.index[-1]).date())
+    meta["frame_sha256"] = _frame_sha256(frame)
+    return frame, meta
 
 
 class FastInfo:
@@ -788,6 +1046,94 @@ class Ticker(TechnicalMixin, TwitterMixin):
             df["Adj Close"] = _compute_adj_close(df["Close"], divs)
 
         return df
+
+    def history_adjusted(
+        self,
+        period: str = "1mo",
+        interval: str = "1d",
+        start: datetime | str | None = None,
+        end: datetime | str | None = None,
+        **kwargs: Any,
+    ) -> tuple[pd.DataFrame, dict]:
+        """Tam düzeltilmiş fiyat serisi (split × temettü) + künye.
+
+        Hedef, TradingView ``ADJ`` **açık** serisidir: bedelsiz/bedelli
+        düzeltmesi (TradingView'da kapatılamaz) × temettü çarpanı.
+
+        Pipeline (tek hesap yolu):
+
+        1. ``history(adjust=True)`` → split-düzeltilmiş OHLCV (taban)
+        2. ``history(auto_adjust=True)`` → ``Adj Close`` (split + temettü)
+        3. ``factor = Adj Close / Close`` → **saf temettü** çarpanı
+        4. ``OHLC × factor``; ``Volume`` değişmez; ``raw_close`` eklenir
+
+        Split tespiti için ek olarak ``history(adjust=False)`` (nominal fiyat)
+        çekilir — ``Stock Splits`` kolonu kanıt sayılmaz (BIMAS'ta yanlış).
+
+        Not: Float katmanı (gösterge fiyatı, muhasebe değeri değil). Bir
+        çağrı üç istek yapar (video: ağ maliyeti).
+
+        Args:
+            period: ``history`` ile aynı (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, …).
+            interval: ``history`` ile aynı.
+            start: Başlangıç tarihi (string veya datetime).
+            end: Bitiş tarihi (string veya datetime).
+            **kwargs: ``history``'ye iletilir. ``adjust``/``auto_adjust``/
+                ``actions`` **verilemez** — bu metot onları kendisi yönetir.
+
+        Returns:
+            ``(frame, meta)``. ``frame``: Open, High, Low, Close, Volume,
+            raw_close. ``meta``: :func:`build_adjusted_frame` künyesi.
+
+        Raises:
+            ValueError: ``adjust``/``auto_adjust``/``actions`` kwargs olarak
+                verilirse (fail-loud, sessiz yok sayma yok) veya ``Adj Close``
+                üretilemezse.
+        """
+        managed = {"adjust", "auto_adjust", "actions"} & set(kwargs)
+        if managed:
+            raise ValueError(
+                "history_adjusted manages "
+                f"{sorted(managed)} internally; call history() for those "
+                "behaviours instead"
+            )
+
+        base = self.history(
+            period=period, interval=interval, start=start, end=end, **kwargs
+        )
+        if base.empty:
+            return build_adjusted_frame(base, pd.Series(dtype="float64"))
+
+        with_adj = self.history(
+            period=period,
+            interval=interval,
+            start=start,
+            end=end,
+            auto_adjust=True,
+            **kwargs,
+        )
+        if "Adj Close" not in with_adj.columns:
+            raise ValueError(
+                "history_adjusted requires an 'Adj Close' column (dividend "
+                "factor); the provider did not return one — silent "
+                "single-layer (split-only) adjustment is not allowed"
+            )
+
+        nominal: pd.Series | None
+        try:
+            raw_frame = self.history(
+                period=period,
+                interval=interval,
+                start=start,
+                end=end,
+                adjust=False,
+                **kwargs,
+            )
+            nominal = raw_frame["Close"] if "Close" in raw_frame.columns else None
+        except Exception:  # noqa: BLE001 — nominal seri yalnız split tespiti için
+            nominal = None
+
+        return build_adjusted_frame(base, with_adj["Adj Close"], nominal_close=nominal)
 
     def _add_actions_to_history(self, df: pd.DataFrame) -> pd.DataFrame:
         """

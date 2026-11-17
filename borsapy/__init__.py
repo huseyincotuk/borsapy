@@ -241,7 +241,7 @@ from borsapy.technical import (
     round_to_tick,
     tick_for_price,
 )
-from borsapy.ticker import Ticker
+from borsapy.ticker import Ticker, build_adjusted_frame, to_raw_price
 from borsapy.tv_loop import (
     LiveLoopResult,
     consecutive_unusable,
@@ -278,6 +278,8 @@ __all__ = [
     # Main classes
     "Ticker",
     "Tickers",
+    "build_adjusted_frame",
+    "to_raw_price",
     "FX",
     "Crypto",
     "Fund",
